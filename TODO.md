@@ -56,6 +56,16 @@ Escher's idea: a feature "printed" as a designed movie-ticket PNG that IS the ga
 - [x] **Redeem** at the Box Office (file picker) or by dropping the PNG anywhere on the app → `pngReadText` → `loadFeature`.
 - Decision: v1 is metadata-only — the original FILE must be sent (photo-mode recompression to JPEG strips the chunk; the error message says so). The barcode slot is reserved for a real QR in v2 (vendored jsQR), which would survive recompression and become phone-camera-scannable once hosted.
 
+## 16. Per-device testing pass (opened 2026-06-12, site is live)
+Now that it's hosted, test on real hardware. Known gaps from code review, before anyone even touches a device:
+- [ ] **Board pinch-zoom is missing** — zoom is wheel-only (`viewport.addEventListener("wheel")`); touch devices can pan but never zoom. Needs two-pointer pinch handling in the board's pointer events.
+- [ ] `100vh` audit — `.screen` and `.screen.game` use `100vh`; mobile browser chrome makes that lie (`100dvh` + fallback).
+- [ ] Touch-target audit — scene-row tools (28px), board header buttons, deck fan tap areas.
+- [ ] Poster-rain performance on low-end phones (it already respects `prefers-reduced-motion`; maybe also cap columns by device memory/width).
+- [ ] Cast grid / Box Office shelves / scene editor deck at 360px widths.
+- [ ] Safari specifics: View Transitions API fallback paths, `aspect-ratio` in the deck, PNG ticket download UX on iOS (no real "download" — share sheet).
+- [x] Drag lag fixed (2026-06-12): node drags painted in the pointermove handler instead of waiting for the next physics frame (one-frame cursor trail), edges of the dragged node updated in the same breath.
+
 ## 13. The Archives (idea, no code — 2026-06-12)
 A separate screen like achievements but *discoveries*: a record of what you've found across games — connections discovered, chains walked, rare deep-cut placements, maybe "first time you used X". Name reserved from the Back Lot naming discussion. Spec TBD; likely wants persistence (localStorage now, Supabase later).
 

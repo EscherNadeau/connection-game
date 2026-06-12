@@ -1327,6 +1327,17 @@ function addBoardNode(item, x, y, fixed = false) {
       s.x = (ev.clientX - rect.left - view.x) / view.scale;
       s.y = (ev.clientY - rect.top - view.y) / view.scale;
       s.vx = s.vy = 0;
+      // paint NOW — deferring to the next physics frame trails the cursor
+      positionNode(s);
+      for (const eg of edgeEls) {
+        if (eg.a !== item.key && eg.b !== item.key) continue;
+        const a = sim.get(eg.a);
+        const b = sim.get(eg.b);
+        eg.el.setAttribute("x1", a.x);
+        eg.el.setAttribute("y1", a.y);
+        eg.el.setAttribute("x2", b.x);
+        eg.el.setAttribute("y2", b.y);
+      }
     };
     const up = () => {
       s.dragging = false;
