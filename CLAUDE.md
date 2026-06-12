@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running it
 
-Open `index.html` directly in a browser (`Start-Process index.html`) — file:// works. All data comes live from the TMDB API; the app prompts for a key on first run (v3 key or v4 bearer token, stored in localStorage as `tmdb_key`). Without a valid key nothing beyond the key screen is testable.
+Open `index.html` directly in a browser (`Start-Process index.html`) — file:// works. All data comes live from the TMDB API. A house key ships in `DEFAULT_TMDB_KEY` (deliberately public — embed decision 2026-06-12), so the app boots straight to home; a personal key saved via "change api key" (localStorage `tmdb_key`, v3 key or v4 bearer token) overrides it. Live site: GitHub Pages from the `main` branch of EscherNadeau/connection-game.
 
 ## Files
 

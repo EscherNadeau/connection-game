@@ -9,7 +9,7 @@ const IMG = "https://image.tmdb.org/t/p/w342";
 // The house key: lets visitors on the live site play instantly, no
 // signup wall. TMDB keys are client-visible by nature; anyone can still
 // bring their own via "change api key" (their key wins once saved).
-const DEFAULT_TMDB_KEY = ""; // paste the deploy key here before going live
+const DEFAULT_TMDB_KEY = "2d93c6b7fd37267cb508e4cf8ce02dda";
 
 let apiKey = localStorage.getItem("tmdb_key") || DEFAULT_TMDB_KEY;
 
