@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Connection Game</title>
+<meta name="description" content="Link two corners of cinema through the actors and titles that bind them — movie trivia as a web you weave.">
+<meta name="theme-color" content="#f4f1ea">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<meta property="og:title" content="The Connection Game">
+<meta property="og:description" content="Link two corners of cinema through the people and titles that bind them. Fewer steps, sweeter win.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Bebas+Neue&family=Creepster&family=Monoton&family=Rye&family=Special+Elite&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<button id="btn-theme" class="theme-toggle" title="Toggle light / dark">☀</button>
+
+<!-- ambient background -->
+<div class="bg">
+  <div class="blob blob-a"></div>
+  <div class="blob blob-b"></div>
+  <div class="blob blob-c"></div>
+</div>
+<div class="noise"></div>
+
+<!-- API KEY SCREEN -->
+<section id="screen-key" class="screen">
+  <div class="hero narrow">
+    <p class="eyebrow">Before we begin</p>
+    <h1>One <em>key</em> to play.</h1>
+    <p class="tagline">Paste your TMDB API key — v3 key or v4 token, both work.<br>
+      <small>Free at <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org</a> · stored only in your browser</small></p>
+    <div class="field-row">
+      <input type="password" id="key-input" placeholder="Your TMDB key" autocomplete="off">
+      <button id="key-save" class="btn primary">Continue</button>
+    </div>
+    <p id="key-error" class="error hidden"></p>
+  </div>
+</section>
+
+<!-- HOME SCREEN -->
+<section id="screen-home" class="screen hidden">
+  <div id="poster-rain" aria-hidden="true"></div>
+  <div class="hero">
+    <p class="eyebrow">Movies · Shows · People</p>
+    <h1>The <em id="cycle-word">Connection</em><br>Game</h1>
+    <p class="tagline">Link two corners of cinema through the people<br>and titles that bind them. Fewer steps, sweeter win.</p>
+    <div class="hero-actions mode-switch">
+      <button id="mode-prev" class="btn icon mode-arrow" title="Previous mode">‹</button>
+      <button id="btn-mode" class="btn primary big"><span id="mode-label">Play Classic</span> <span class="arrow-r">→</span></button>
+      <button id="mode-next" class="btn icon mode-arrow" title="Next mode">›</button>
+    </div>
+    <p id="mode-desc" class="mode-desc">Random corners of cinema — link them.</p>
+    <button id="btn-how" class="btn ghost">how to play</button>
+    <button id="btn-office" class="btn ghost">🎟 the box office</button>
+    <button id="btn-change-key" class="btn ghost">change api key</button>
+  </div>
+</section>
+
+<!-- HOW TO PLAY SCREEN -->
+<section id="screen-how" class="screen hidden">
+  <div class="how">
+    <p class="eyebrow">The rules</p>
+    <h2 class="setup-title">How to <em>play</em>.</h2>
+
+    <div class="how-steps">
+      <div class="how-card">
+        <span class="how-num">1</span>
+        <h3>The mission</h3>
+        <p>You get two corners of cinema — a <b class="c-start">Start</b> and a <b class="c-goal">Goal</b>. Build a chain of connections between them.</p>
+      </div>
+      <div class="how-card">
+        <span class="how-num">2</span>
+        <h3>The one rule</h3>
+        <p>A <b>person</b> connects to a <b>movie or show</b> they acted in. That's it. Titles never link to titles, people never to people.</p>
+      </div>
+      <div class="how-card">
+        <span class="how-num">3</span>
+        <h3>Weave the web</h3>
+        <p>Search anything. If it connects to <i>something</i> on your board, it sticks. Branch freely — dead ends cost nothing.</p>
+      </div>
+      <div class="how-card">
+        <span class="how-num">4</span>
+        <h3>Connect to win</h3>
+        <p>The moment any path links Start to Goal, you've done it. Fewer links, sweeter win — only the shortest path counts.</p>
+      </div>
+    </div>
+
+    <div class="how-example">
+      <div class="ex-item c-start-ring"><span class="ex-emoji">🎬</span>The Dark Knight</div>
+      <span class="ex-arrow">→</span>
+      <div class="ex-item"><span class="ex-emoji">🧑</span>Cillian Murphy</div>
+      <span class="ex-arrow">→</span>
+      <div class="ex-item c-goal-ring"><span class="ex-emoji">🎬</span>Oppenheimer</div>
+    </div>
+    <p class="how-caption">2 links — one actor appeared in both. That's a near-perfect game.</p>
+
+    <ul class="how-tips">
+      <li>💡 Hints auto-place the most helpful item — they're counted on your score</li>
+      <li>⏱ Timer on? Beat the clock or the board locks</li>
+      <li>🖐 Drag posters around, pan and zoom the board like a cork wall</li>
+      <li>↻ Reroll the Start and Goal, or search to build your own matchup</li>
+    </ul>
+
+    <div class="setup-actions">
+      <button id="btn-how-back" class="btn ghost">← back</button>
+      <button id="btn-how-play" class="btn primary big">Got It — Play <span class="arrow-r">→</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- PREMIERE — landing page for every shared link / studio title card -->
+<section id="screen-premiere" class="screen hidden">
+  <div id="premiere-posters" aria-hidden="true"></div>
+  <div class="hero narrow premiere-card">
+    <p class="eyebrow" id="prem-eyebrow">A Studio production</p>
+    <h1 id="prem-title"><em>Untitled</em></h1>
+    <p class="tagline" id="prem-tag"></p>
+    <div id="prem-scenes" class="prem-scenes"></div>
+    <div class="hero-actions">
+      <button id="btn-prem-play" class="btn primary big">▶ Roll Film</button>
+    </div>
+    <button id="btn-prem-home" class="btn ghost">← home</button>
+  </div>
+</section>
+
+<!-- CHALLENGE BUILDER -->
+<section id="screen-build" class="screen hidden">
+  <!-- you build standing on your own premiere page -->
+  <div id="build-posters" aria-hidden="true"></div>
+  <div class="hero narrow premiere-card build-stage">
+    <div class="marquee">
+      <label class="marquee-field by-field">
+        <span class="field-tag">a production by</span>
+        <input type="text" id="build-by" maxlength="30" placeholder="your name" autocomplete="off">
+      </label>
+      <label class="marquee-field">
+        <span class="field-tag">title</span>
+        <input type="text" id="build-title" class="marquee-title" maxlength="60" placeholder="Untitled Feature" autocomplete="off">
+      </label>
+      <label class="marquee-field">
+        <span class="field-tag">tagline</span>
+        <input type="text" id="build-tag" class="marquee-tag" maxlength="80" placeholder="a line for the poster…" autocomplete="off">
+      </label>
+    </div>
+
+    <div id="build-scenes" class="prem-scenes"></div>
+    <button id="btn-add-scene" class="btn add-scene">＋ add your first scene</button>
+
+    <div class="hero-actions build-actions">
+      <button id="btn-build-test" class="btn" disabled>▶ Test Screening</button>
+      <button id="btn-build-copy" class="btn primary big" disabled>🔗 Release — Copy Link</button>
+      <button id="btn-build-ticket" class="btn" disabled>🎟 Print a Ticket</button>
+    </div>
+    <p id="build-par-status" class="par-status">Untested — run it yourself to stamp a par.</p>
+    <div class="build-footer">
+      <button id="btn-build-back" class="btn ghost">← back</button>
+      <button id="btn-build-rules" class="btn ghost">🚫 bans</button>
+    </div>
+  </div>
+</section>
+
+<!-- SCENE EDITOR — the Studio edits one scene, setup-screen style -->
+<section id="screen-scene" class="screen hidden">
+  <div class="setup">
+    <p class="eyebrow" id="scene-eyebrow">Scene 1 — new</p>
+    <h2 class="setup-title" id="scene-title">Connect <em>this</em> to <em>that</em>.</h2>
+
+    <div class="scene-mode-row">
+      <div class="chip-group" id="scene-mode-chips">
+        <button class="chip active" data-value="classic">Classic</button>
+        <button class="chip" data-value="knowledge">Knowledge</button>
+      </div>
+    </div>
+
+    <div class="endpoints">
+      <div class="endpoint ep-start">
+        <div class="endpoint-frame">
+          <span class="endpoint-label start-label">Start</span>
+          <div class="item-display" id="scene-start-display"></div>
+        </div>
+        <div class="endpoint-tools">
+          <button class="btn icon scene-reroll" data-pick="start" title="Reroll">↻</button>
+          <button class="btn icon browse-cast" data-pick="start" title="Browse the catalog">▦</button>
+          <div class="search-box">
+            <input type="text" class="scene-pick-search" data-pick="start" placeholder="or search anything…" autocomplete="off">
+            <ul class="suggestions hidden"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector only-classic"><span class="connector-line"></span><span class="connector-word">to</span><span class="connector-line"></span></div>
+
+      <div class="endpoint ep-goal only-classic">
+        <div class="endpoint-frame">
+          <span class="endpoint-label end-label">Goal</span>
+          <div class="item-display" id="scene-goal-display"></div>
+        </div>
+        <div class="endpoint-tools">
+          <button class="btn icon scene-reroll" data-pick="goal" title="Reroll">↻</button>
+          <button class="btn icon browse-cast" data-pick="goal" title="Browse the catalog">▦</button>
+          <div class="search-box">
+            <input type="text" class="scene-pick-search" data-pick="goal" placeholder="or search anything…" autocomplete="off">
+            <ul class="suggestions hidden"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rules-pill-row">
+      <button id="btn-scene-rules" class="btn ghost">⚙ rules: <span id="scene-rules-summary">none</span></button>
+    </div>
+
+    <div class="setup-actions">
+      <button id="btn-scene-back" class="btn ghost">← back</button>
+      <button id="btn-scene-save" class="btn primary big">✓ Save Scene</button>
+    </div>
+  </div>
+</section>
+
+<!-- CASTING CALL — full-page TMDB browse; assigns into setup or the Studio -->
+<section id="screen-cast" class="screen hidden">
+  <div class="cast-wrap">
+    <p class="eyebrow" id="cast-eyebrow">The casting call</p>
+    <h2 class="setup-title" id="cast-title">Cast <em>anything</em>.</h2>
+
+    <div class="cast-controls">
+      <div class="search-box cast-search-box">
+        <input type="text" id="cast-search" placeholder="search movies, shows, people…" autocomplete="off">
+      </div>
+      <div class="chip-group" id="cast-types">
+        <button class="chip active" data-value="any">✦ All</button>
+        <button class="chip" data-value="movie">Movies</button>
+        <button class="chip" data-value="tv">Shows</button>
+        <button class="chip" data-value="person">People</button>
+      </div>
+    </div>
+
+    <div class="chip-group cast-targets hidden" id="cast-targets">
+      <button class="chip" data-value="start">→ Start</button>
+      <button class="chip only-classic" data-value="goal">→ Goal</button>
+      <button class="chip only-classic" data-value="via">→ Via</button>
+      <button class="chip" data-value="ban">🚫 Ban</button>
+    </div>
+    <p id="cast-session" class="cast-session"></p>
+
+    <div id="cast-grid" class="cast-grid"></div>
+    <button id="btn-cast-more" class="btn ghost cast-more hidden">＋ more</button>
+
+    <div class="setup-actions cast-actions">
+      <button id="btn-cast-back" class="btn primary big">← back</button>
+    </div>
+  </div>
+</section>
+
+<!-- BOX OFFICE — browse features: staff picks, your filmography, ticket stubs -->
+<section id="screen-office" class="screen hidden">
+  <div class="cast-wrap office-wrap">
+    <p class="eyebrow">The Box Office</p>
+    <h2 class="setup-title">Pick your <em>ticket</em>.</h2>
+    <button id="btn-redeem" class="btn ghost office-redeem">🎟 redeem a ticket — or drop the image anywhere</button>
+    <input type="file" id="redeem-file" accept="image/png" class="hidden">
+    <div id="office-shelves"></div>
+    <div class="setup-actions cast-actions">
+      <button id="btn-office-back" class="btn primary big">← home</button>
+    </div>
+  </div>
+</section>
+
+<!-- MODE / SETUP SCREEN -->
+<section id="screen-mode" class="screen hidden">
+  <div class="setup">
+    <p class="eyebrow">Your challenge</p>
+    <h2 class="setup-title">Connect <em>this</em> to <em>that</em>.</h2>
+
+    <div class="lobby-settings">
+      <div class="chip-group difficulty-chips" id="difficulty-chips">
+        <button class="chip" data-value="easy">Easy</button>
+        <button class="chip" data-value="medium">Medium</button>
+        <button class="chip" data-value="hard">Hard</button>
+        <button class="chip" data-value="crazy">Crazy</button>
+        <button class="chip" data-value="custom">Custom</button>
+      </div>
+      <div class="knobs-wrap" id="knobs-wrap">
+      <div class="knobs-clip">
+      <div class="knobs">
+        <div class="knob">
+          <span class="knob-name">Obscurity</span>
+          <div class="chip-group" data-setting="obscurity">
+            <button class="chip" data-value="famous">Famous</button>
+            <button class="chip" data-value="known">Known</button>
+            <button class="chip" data-value="deep">Deep cuts</button>
+            <button class="chip" data-value="crazy">Crazy</button>
+          </div>
+        </div>
+        <div class="knob">
+          <span class="knob-name">Hints</span>
+          <div class="chip-group" data-setting="hints">
+            <button class="chip" data-value="yes">On</button>
+            <button class="chip" data-value="no">Off</button>
+          </div>
+        </div>
+        <div class="knob">
+          <span class="knob-name">Timer</span>
+          <div class="chip-group" data-setting="timer">
+            <button class="chip" data-value="yes">On</button>
+            <button class="chip" data-value="no">Off</button>
+          </div>
+          <div class="timer-time" id="timer-minutes-wrap">
+            <input type="number" id="timer-minutes" min="1" max="120" value="5">
+            <span class="timer-unit">min</span>
+          </div>
+        </div>
+      </div>
+      </div>
+      </div>
+      <div class="knobs hybrid-knobs" id="hybrid-knobs">
+        <div class="knob">
+          <span class="knob-name">Goals</span>
+          <div class="chip-group" id="hybrid-n-chips">
+            <button class="chip" data-value="1">1</button>
+            <button class="chip active" data-value="2">2</button>
+            <button class="chip" data-value="3">3</button>
+          </div>
+          <span class="timer-unit">on the bill</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoints">
+      <div class="endpoint ep-start" id="card-start">
+        <div class="endpoint-frame">
+          <span class="endpoint-label start-label">Start</span>
+          <div class="item-display" data-slot="start"></div>
+        </div>
+        <div class="type-filter" data-slot="start">
+          <button class="chip active" data-type="any">✦ Any</button>
+          <button class="chip" data-type="movie">Movie</button>
+          <button class="chip" data-type="tv">Show</button>
+          <button class="chip" data-type="person">Person</button>
+        </div>
+        <div class="endpoint-tools">
+          <button class="btn icon reroll" data-slot="start" title="Reroll">↻</button>
+          <button class="btn icon browse-cast" data-slot="start" title="Browse the catalog">▦</button>
+          <div class="search-box">
+            <input type="text" class="endpoint-search" data-slot="start" placeholder="or search anything…" autocomplete="off">
+            <ul class="suggestions hidden"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector"><span class="connector-line"></span><span class="connector-word">to</span><span class="connector-line"></span></div>
+
+      <div class="endpoint ep-goal" id="card-end">
+        <div class="endpoint-frame">
+          <span class="endpoint-label end-label">Goal</span>
+          <div class="item-display" data-slot="end"></div>
+        </div>
+        <div class="type-filter" data-slot="end">
+          <button class="chip active" data-type="any">✦ Any</button>
+          <button class="chip" data-type="movie">Movie</button>
+          <button class="chip" data-type="tv">Show</button>
+          <button class="chip" data-type="person">Person</button>
+        </div>
+        <div class="endpoint-tools">
+          <button class="btn icon reroll" data-slot="end" title="Reroll">↻</button>
+          <button class="btn icon browse-cast" data-slot="end" title="Browse the catalog">▦</button>
+          <div class="search-box">
+            <input type="text" class="endpoint-search" data-slot="end" placeholder="or search anything…" autocomplete="off">
+            <ul class="suggestions hidden"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- double feature: one poster deck — start in front, goals fanned
+           behind; tap a poster to bring it forward, tools act on the front -->
+      <div class="df-wrap" id="df-wrap">
+        <div class="df-deck" id="df-deck">
+          <button class="df-card" data-card="start">
+            <span class="endpoint-label start-label">Start</span>
+            <div class="item-display" data-slot="start"></div>
+          </button>
+          <button class="df-card" data-card="0">
+            <span class="endpoint-label end-label">Goal 1</span>
+            <div class="item-display" data-goal-slot="0"></div>
+          </button>
+          <button class="df-card" data-card="1">
+            <span class="endpoint-label end-label">Goal 2</span>
+            <div class="item-display" data-goal-slot="1"></div>
+          </button>
+          <button class="df-card" data-card="2">
+            <span class="endpoint-label end-label">Goal 3</span>
+            <div class="item-display" data-goal-slot="2"></div>
+          </button>
+        </div>
+        <div class="df-tools">
+          <button class="btn icon" id="df-reroll" title="Reroll">↻</button>
+          <button class="btn icon" id="df-browse" title="Browse the catalog">▦</button>
+          <div class="search-box">
+            <input type="text" id="df-search" placeholder="or search anything…" autocomplete="off">
+            <ul class="suggestions hidden"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-actions">
+      <button id="btn-back-home" class="btn ghost">← back</button>
+      <button id="btn-start-game" class="btn primary big">Start Game <span class="arrow-r">→</span></button>
+      <button id="btn-share-link" class="btn ghost">🔗 copy challenge link</button>
+    </div>
+  </div>
+</section>
+
+<!-- GAME SCREEN -->
+<section id="screen-game" class="screen game hidden">
+  <header class="game-header">
+    <div id="game-goal"></div>
+    <div class="game-stats">
+      <span id="stat-placed">Placed: 0</span>
+      <button id="btn-hint" class="btn ghost small hidden">💡 hint</button>
+      <button id="btn-finish" class="btn ghost small hidden">⏹ i'm done</button>
+      <button id="btn-quit" class="btn ghost small">quit</button>
+    </div>
+  </header>
+
+  <div id="game-timer" class="hidden">0:00</div>
+
+  <div class="game-search">
+    <div class="search-box big-search">
+      <input type="text" id="game-search-input" placeholder="Search a movie, show, or person…" autocomplete="off">
+      <ul class="suggestions hidden" id="game-suggestions"></ul>
+    </div>
+    <p id="game-message" class="message"></p>
+  </div>
+
+  <div id="board-viewport">
+    <div id="board-world">
+      <svg id="edges"></svg>
+      <div id="nodes"></div>
+    </div>
+  </div>
+
+  <button id="btn-show-results" class="btn primary show-results hidden">🏆 results</button>
+</section>
+
+<!-- WIN MODAL -->
+<div id="win-modal" class="modal hidden">
+  <div class="win-panel">
+    <p class="eyebrow">Chain complete</p>
+    <h1><em>Connected.</em></h1>
+    <p id="win-score"></p>
+    <div id="win-path" class="win-path"></div>
+    <div class="win-actions">
+      <button id="btn-play-again" class="btn primary big">Play Again <span class="arrow-r">→</span></button>
+      <button id="btn-copy-challenge" class="btn ghost">🔗 copy challenge</button>
+      <button id="btn-view-web" class="btn ghost">🕸 view the web</button>
+    </div>
+  </div>
+</div>
+
+<!-- BACK LOT DETAIL — one item opened up, credits as walkable cards -->
+<div id="detail-sheet" class="modal hidden">
+  <div class="sheet-panel detail-panel">
+    <div id="detail-trail" class="detail-trail"></div>
+    <div class="detail-head">
+      <div class="detail-poster" id="detail-poster"></div>
+      <div class="detail-info">
+        <h3 id="detail-name"></h3>
+        <p class="detail-meta" id="detail-meta"></p>
+        <p class="detail-overview" id="detail-overview"></p>
+        <button id="btn-detail-play" class="btn primary">▶ Play from here</button>
+      </div>
+    </div>
+    <p class="eyebrow detail-conns-label">Connections</p>
+    <div id="detail-conns" class="detail-conns"></div>
+  </div>
+</div>
+
+<!-- SCENE RULES SHEET — optional knobs for the scene being edited -->
+<div id="scene-rules-sheet" class="modal hidden">
+  <div class="sheet-panel">
+    <p class="eyebrow">Scene rules</p>
+    <div class="build-row">
+      <span class="build-label">Clock</span>
+      <div class="chip-group only-classic" id="build-timer">
+        <button class="chip" data-value="no">Untimed</button>
+        <button class="chip" data-value="yes">Timed</button>
+      </div>
+      <div class="timer-time" id="build-minutes-wrap">
+        <input type="number" id="build-minutes" min="1" max="120" value="5">
+        <span class="timer-unit">min</span>
+      </div>
+    </div>
+    <div class="build-row only-knowledge">
+      <span class="build-label">Target</span>
+      <input type="number" id="build-target" min="0" max="50" placeholder="∞">
+      <span class="timer-unit">name this many to clear the scene (blank = pure clock)</span>
+    </div>
+    <div class="build-row only-classic">
+      <span class="build-label">Hints</span>
+      <div class="chip-group" id="build-hints">
+        <button class="chip active" data-value="no">Off</button>
+        <button class="chip" data-value="yes">On</button>
+      </div>
+    </div>
+    <div class="build-row only-classic">
+      <span class="build-label">Budget</span>
+      <input type="number" id="build-budget" min="0" max="50" placeholder="∞">
+      <span class="timer-unit">moves (blank = no limit)</span>
+    </div>
+    <div class="build-row">
+      <span class="build-label">Allowed</span>
+      <div class="chip-group" id="build-types">
+        <button class="chip active" data-value="movie">Movies</button>
+        <button class="chip active" data-value="tv">Shows</button>
+        <button class="chip active" data-value="person">People</button>
+      </div>
+    </div>
+    <div class="build-row only-classic">
+      <span class="build-label">Via</span>
+      <div class="search-box mini-search">
+        <input type="text" id="build-wp-search" placeholder="must pass through… (up to 3)" autocomplete="off">
+        <ul class="suggestions hidden"></ul>
+      </div>
+    </div>
+    <div id="build-wp-chips" class="rule-chips slim only-classic" data-empty="waypoints land here"></div>
+    <div class="sheet-actions">
+      <button id="btn-scene-rules-done" class="btn primary">✓ done</button>
+    </div>
+  </div>
+</div>
+
+<!-- BANS SHEET — items banned from the whole feature -->
+<div id="rules-sheet" class="modal hidden">
+  <div class="sheet-panel">
+    <p class="eyebrow">Banned — from the whole feature</p>
+    <div class="build-row">
+      <span class="build-label">Bans</span>
+      <div class="search-box mini-search">
+        <input type="text" id="build-ban-search" placeholder="ban an item… (super-connectors, easy answers)" autocomplete="off">
+        <ul class="suggestions hidden"></ul>
+      </div>
+    </div>
+    <div id="build-ban-chips" class="rule-chips slim" data-empty="banned items land here"></div>
+    <div class="sheet-actions">
+      <button id="btn-rules-done" class="btn primary">✓ done</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE INTERMISSION (multi-round features) -->
+<div id="round-modal" class="modal hidden">
+  <div class="win-panel">
+    <p class="eyebrow" id="round-eyebrow">Scene 1 of 3</p>
+    <h1 id="round-h1"><em>Scene complete.</em></h1>
+    <p id="round-text"></p>
+    <div class="win-actions">
+      <button id="btn-next-round" class="btn primary big">Next Scene <span class="arrow-r">→</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME'S UP MODAL -->
+<div id="lose-modal" class="modal hidden">
+  <div class="win-panel">
+    <p class="eyebrow">Out of time</p>
+    <h1><em>Time's up.</em></h1>
+    <p id="lose-text"></p>
+    <div class="lose-actions">
+      <button id="btn-retry" class="btn primary big">Run It Back <span class="arrow-r">↻</span></button>
+      <button id="btn-lose-new" class="btn ghost">new matchup</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
