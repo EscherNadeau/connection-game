@@ -45,7 +45,8 @@ body {
   font-family: "Inter", system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.5;
-  min-height: 100vh;
+  min-height: 100vh; /* fallback — mobile browser chrome makes vh lie */
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -215,7 +216,8 @@ body.dark .rain-track img {
 
 /* ===== layout ===== */
 .screen {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -701,7 +703,8 @@ input:focus { border-color: rgba(27,24,18,0.35); box-shadow: 0 6px 24px -6px rgb
   margin: -10px 0 36px;
 }
 #screen-scene .endpoint {
-  width: clamp(220px, calc((100vh - 460px) / 1.5), 310px);
+  width: clamp(220px, calc((100vh - 460px) / 1.5), 310px); /* fallback */
+  width: clamp(220px, calc((100dvh - 460px) / 1.5), 310px);
 }
 .rules-pill-row {
   display: flex;
@@ -1186,13 +1189,15 @@ body.hybrid-intent .df-wrap {
 .df-deck {
   position: relative;
   width: min(620px, 92vw);
-  height: clamp(330px, calc(100vh - 420px), 460px);
+  height: clamp(330px, calc(100vh - 420px), 460px); /* fallback */
+  height: clamp(330px, calc(100dvh - 420px), 460px);
 }
 .df-card {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: calc(clamp(330px, 100vh - 420px, 460px) * 2 / 3);
+  width: calc(clamp(330px, 100vh - 420px, 460px) * 2 / 3); /* fallback */
+  width: calc(clamp(330px, 100dvh - 420px, 460px) * 2 / 3);
   aspect-ratio: 2 / 3;
   padding: 0;
   border: 1px solid var(--line);
@@ -1561,7 +1566,8 @@ body.dark .ep-goal .endpoint-frame:hover {
   display: block;
   padding: 0;
   position: relative;
-  height: 100vh;
+  height: 100vh; /* fallback — the board must fit the VISIBLE viewport */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -2034,3 +2040,15 @@ body.dark .wf-horror  { color: #d96a5c; }
 body.dark .wf-neon    { color: #a99bf2; }
 body.dark .wf-western { color: #c89556; }
 body.dark .wf-fantasy { color: #87a883; }
+
+/* ===== touch ergonomics — coarse pointers only, desktop untouched ===== */
+@media (pointer: coarse) {
+  /* scene-row tools were 28px — a fat-finger trap next to "cut scene" */
+  .scene-tools { gap: 10px; }
+  .scene-tools .btn.icon { width: 42px; height: 42px; font-size: 0.8rem; }
+  /* header pills (undo / hint / i'm done / quit) up to a comfortable tap */
+  .btn.small { padding: 11px 18px; }
+  .game-stats { gap: 10px; }
+  /* search suggestion rows — taller rows, easier to hit mid-game */
+  .suggestions li { padding: 12px 10px; }
+}

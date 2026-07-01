@@ -70,10 +70,10 @@ Escher's idea: a feature "printed" as a designed movie-ticket PNG that IS the ga
 
 ## 16. Per-device testing pass (opened 2026-06-12, site is live)
 Now that it's hosted, test on real hardware. Known gaps from code review, before anyone even touches a device:
-- [ ] **Board pinch-zoom is missing** — zoom is wheel-only (`viewport.addEventListener("wheel")`); touch devices can pan but never zoom. Needs two-pointer pinch handling in the board's pointer events.
-- [ ] `100vh` audit — `.screen` and `.screen.game` use `100vh`; mobile browser chrome makes that lie (`100dvh` + fallback).
-- [ ] Touch-target audit — scene-row tools (28px), board header buttons, deck fan tap areas.
-- [ ] Poster-rain performance on low-end phones (it already respects `prefers-reduced-motion`; maybe also cap columns by device memory/width).
+- [x] **Board pinch-zoom** (2026-07-01) — the board tracks its touches in `boardPointers`: one pointer pans, two pinch-zoom around the finger midpoint (midpoint drift pans simultaneously), lifting one finger hands back to panning without a hiccup. Same 0.25–2.5 scale clamp as the wheel. `touch-action: none` was already set — only the gesture logic was missing.
+- [x] `100vh` audit (2026-07-01) — all six uses now pair a `100vh` fallback with a `100dvh` override (body, `.screen`, `.screen.game`, scene-editor endpoint clamp, df-deck/df-card clamps).
+- [x] Touch-target audit, first pass (2026-07-01) — `@media (pointer: coarse)` block: scene tools 28→42px, header pills fatter, suggestion rows taller. Desktop visuals untouched. Deck fan tap areas left for on-device verdict.
+- [x] Poster-rain: phones and low-memory devices (`navigator.deviceMemory ≤ 4`) now build 4 columns instead of building 6 and hiding 2 — no decode work for posters that never show (2026-07-01).
 - [ ] Cast grid / Box Office shelves / scene editor deck at 360px widths.
 - [ ] Safari specifics: View Transitions API fallback paths, `aspect-ratio` in the deck, PNG ticket download UX on iOS (no real "download" — share sheet).
 - [x] Drag lag fixed (2026-06-12): node drags painted in the pointermove handler instead of waiting for the next physics frame (one-frame cursor trail), edges of the dragged node updated in the same breath.

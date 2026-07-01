@@ -1339,25 +1339,71 @@ function applyView() {
   viewport.style.backgroundPosition = `${view.x}px ${view.y}px`;
 }
 
-// --- pan & zoom ---
+// --- pan & zoom (one pointer pans, two pinch-zoom, wheel zooms) ---
 let panning = null;
+const boardPointers = new Map(); // pointerId -> {x, y} — live touches on the viewport
+let pinch = null; // last {d, mx, my} — finger distance + midpoint
+
+function pinchNow() {
+  const [a, b] = [...boardPointers.values()];
+  return {
+    d: Math.hypot(b.x - a.x, b.y - a.y),
+    mx: (a.x + b.x) / 2,
+    my: (a.y + b.y) / 2,
+  };
+}
+
 viewport.addEventListener("pointerdown", (e) => {
   if (e.target.closest(".gnode")) return;
-  panning = { px: e.clientX, py: e.clientY };
+  boardPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   viewport.classList.add("panning");
   viewport.setPointerCapture(e.pointerId);
+  if (boardPointers.size === 2) {
+    pinch = pinchNow(); // second finger down — pan hands over to pinch
+    panning = null;
+  } else if (boardPointers.size === 1) {
+    panning = { px: e.clientX, py: e.clientY };
+  }
 });
 viewport.addEventListener("pointermove", (e) => {
+  if (boardPointers.has(e.pointerId))
+    boardPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && boardPointers.size >= 2) {
+    // zoom by the finger-distance ratio around the midpoint; the midpoint's
+    // own drift pans, so one gesture can do both at once
+    const rect = viewport.getBoundingClientRect();
+    const now = pinchNow();
+    const next = Math.min(2.5, Math.max(0.25, view.scale * (now.d / (pinch.d || 1))));
+    const f = next / view.scale;
+    const mx = now.mx - rect.left;
+    const my = now.my - rect.top;
+    view.x = mx - (mx - view.x) * f + (now.mx - pinch.mx);
+    view.y = my - (my - view.y) * f + (now.my - pinch.my);
+    view.scale = next;
+    pinch = now;
+    applyView();
+    return;
+  }
   if (!panning) return;
   view.x += e.clientX - panning.px;
   view.y += e.clientY - panning.py;
   panning = { px: e.clientX, py: e.clientY };
   applyView();
 });
-viewport.addEventListener("pointerup", () => {
-  panning = null;
-  viewport.classList.remove("panning");
-});
+function boardPointerEnd(e) {
+  boardPointers.delete(e.pointerId);
+  pinch = null;
+  if (boardPointers.size === 1) {
+    // one finger left — carry on as a pan from where it sits
+    const [p] = boardPointers.values();
+    panning = { px: p.x, py: p.y };
+  } else {
+    panning = null;
+    if (boardPointers.size === 0) viewport.classList.remove("panning");
+  }
+}
+viewport.addEventListener("pointerup", boardPointerEnd);
+viewport.addEventListener("pointercancel", boardPointerEnd);
 viewport.addEventListener(
   "wheel",
   (e) => {
@@ -2016,15 +2062,20 @@ async function initPosterRain() {
   if (urls.length < RAIN_COLS * 3) return; // too sparse to look intentional
   rainBuilt = true;
 
+  // phones hide columns 5-6 in CSS (max-width: 700px) — don't build and
+  // decode posters that will never show; low-memory devices get the same cap
+  const cols =
+    innerWidth <= 700 || (navigator.deviceMemory || 8) <= 4 ? 4 : RAIN_COLS;
+
   const rain = document.getElementById("poster-rain");
   // size each column to just cover the viewport — oversized animated
   // layers make the GPU re-rasterize tiles mid-scroll, which stutters
-  const colWidth = (innerWidth - 32 - (RAIN_COLS - 1) * 16) / RAIN_COLS;
+  const colWidth = (innerWidth - 32 - (cols - 1) * 16) / cols;
   const posterH = colWidth * 1.5 + 16;
   const perCol = Math.max(3, Math.ceil(innerHeight / posterH) + 1);
 
   const allImgs = [];
-  for (let c = 0; c < RAIN_COLS; c++) {
+  for (let c = 0; c < cols; c++) {
     const col = document.createElement("div");
     col.className = "rain-col";
     const track = document.createElement("div");
