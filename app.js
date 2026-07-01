@@ -1088,6 +1088,7 @@ function undoLast() {
   }
   updateStats();
   if (game.mode === "hybrid") hybridCheckWin(); // re-mark goal chips (an undo can un-reach one)
+  fitBoard(450);
   setMessage(`↩ Took back ${item.name}.`);
 }
 
@@ -1339,6 +1340,64 @@ function applyView() {
   viewport.style.backgroundPosition = `${view.x}px ${view.y}px`;
 }
 
+// --- auto-fit camera ---
+// Big webs outgrow the screen and force constant manual zoom-outs. After a
+// placement the camera eases out just enough to keep everything visible —
+// chasing (not jumping), because the physics is still settling the new node.
+// Any manual pan/pinch/wheel/drag cancels the follow: the player always wins.
+let fitFollow = null; // rAF id while the camera is following
+
+function cancelFitFollow() {
+  if (fitFollow) cancelAnimationFrame(fitFollow);
+  fitFollow = null;
+}
+
+function boardBounds() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of sim.values()) {
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.y < minY) minY = s.y;
+    if (s.y > maxY) maxY = s.y;
+  }
+  const pad = 160; // token + label breathing room
+  return { minX: minX - pad, maxX: maxX + pad, minY: minY - pad, maxY: maxY + pad + 40 };
+}
+
+function fitBoard(ms = 700) {
+  if (!boardActive || sim.size === 0) return;
+  // already comfortably on screen? leave the camera alone
+  const b = boardBounds();
+  const rect = viewport.getBoundingClientRect();
+  if (
+    b.minX * view.scale + view.x >= 0 &&
+    b.maxX * view.scale + view.x <= rect.width &&
+    b.minY * view.scale + view.y >= 0 &&
+    b.maxY * view.scale + view.y <= rect.height
+  )
+    return;
+  cancelFitFollow();
+  const t0 = performance.now();
+  const step = () => {
+    if (!boardActive || sim.size === 0) { fitFollow = null; return; }
+    const bb = boardBounds();
+    const r = viewport.getBoundingClientRect();
+    const scale = Math.max(
+      0.25,
+      Math.min(1, r.width / (bb.maxX - bb.minX), r.height / (bb.maxY - bb.minY))
+    );
+    const tx = r.width / 2 - ((bb.minX + bb.maxX) / 2) * scale;
+    const ty = r.height / 2 - ((bb.minY + bb.maxY) / 2) * scale - 20;
+    view.scale += (scale - view.scale) * 0.16;
+    view.x += (tx - view.x) * 0.16;
+    view.y += (ty - view.y) * 0.16;
+    applyView();
+    fitFollow =
+      performance.now() - t0 < ms ? requestAnimationFrame(step) : null;
+  };
+  fitFollow = requestAnimationFrame(step);
+}
+
 // --- pan & zoom (one pointer pans, two pinch-zoom, wheel zooms) ---
 let panning = null;
 const boardPointers = new Map(); // pointerId -> {x, y} — live touches on the viewport
@@ -1355,6 +1414,7 @@ function pinchNow() {
 
 viewport.addEventListener("pointerdown", (e) => {
   if (e.target.closest(".gnode")) return;
+  cancelFitFollow();
   boardPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   viewport.classList.add("panning");
   viewport.setPointerCapture(e.pointerId);
@@ -1408,6 +1468,7 @@ viewport.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
+    cancelFitFollow();
     const rect = viewport.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -1439,6 +1500,7 @@ function addBoardNode(item, x, y, fixed = false) {
 
   el.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
+    cancelFitFollow();
     el.setPointerCapture(e.pointerId);
     s.dragging = true;
     const move = (ev) => {
@@ -1651,6 +1713,7 @@ async function tryPlace(item) {
     sy = sy / linked.length + (Math.random() - 0.5) * 90;
     addBoardNode(item, sx, sy);
     for (const k of linked) addEdgeLine(item.key, k);
+    fitBoard(); // ease out if the web has outgrown the screen
 
     updateStats();
     const names = linked.map((k) => game.nodes.get(k).name).join(", ");
