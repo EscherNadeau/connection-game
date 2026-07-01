@@ -1015,6 +1015,10 @@ input:focus { border-color: rgba(27,24,18,0.35); box-shadow: 0 6px 24px -6px rgb
 }
 #btn-detail-play { align-self: flex-start; margin-top: auto; }
 
+/* board peek — the detail look with a bigger poster and no credits */
+.peek-panel { max-width: 520px; }
+.peek-panel .detail-poster { width: 190px; }
+
 .detail-conns-label { margin-bottom: 0; }
 .detail-conns {
   display: flex;

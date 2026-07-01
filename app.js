@@ -1352,6 +1352,9 @@ const MAXF = 10;         // repulsion cap
 const SLEEP = 0.04;      // below this speed, stop moving entirely
 const MIN_SEP = 165;     // hard floor on node spacing (tokens are ~94-141px)
 const SEP_EASE = 0.45;   // fraction of overlap resolved per frame
+const GRAV = 0.0012;     // centering pull per px beyond the flat core
+const GRAV_FREE = 420;   // no gravity inside this radius of the centroid —
+                         // compact webs are left alone (no fights with MIN_SEP)
 
 function applyView() {
   world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
@@ -1524,8 +1527,15 @@ function addBoardNode(item, x, y, fixed = false) {
     cancelFitFollow();
     el.setPointerCapture(e.pointerId);
     s.dragging = true;
+    // tap vs drag: barely-moved pointerups open the peek instead
+    let moved = 0;
+    let lx = e.clientX;
+    let ly = e.clientY;
     const move = (ev) => {
       if (!s.dragging) return;
+      moved += Math.abs(ev.clientX - lx) + Math.abs(ev.clientY - ly);
+      lx = ev.clientX;
+      ly = ev.clientY;
       const rect = viewport.getBoundingClientRect();
       s.x = (ev.clientX - rect.left - view.x) / view.scale;
       s.y = (ev.clientY - rect.top - view.y) / view.scale;
@@ -1546,6 +1556,7 @@ function addBoardNode(item, x, y, fixed = false) {
       s.dragging = false;
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
+      if (moved < 8) openBoardPeek(item); // a tap, not a drag
     };
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", up);
@@ -1602,6 +1613,28 @@ function physicsTick() {
     const fy = (dy / d) * f;
     if (!a.fixed && !a.dragging) { a.vx += fx; a.vy += fy; }
     if (!b.fixed && !b.dragging) { b.vx -= fx; b.vy -= fy; }
+  }
+
+  // weak centering gravity — big webs compact instead of sprawling, so the
+  // auto-fit camera doesn't have to pull back so far. Only bites beyond
+  // GRAV_FREE of the centroid; the compact core never feels it.
+  if (bodies.length > 2) {
+    let cx = 0;
+    let cy = 0;
+    for (const s of bodies) { cx += s.x; cy += s.y; }
+    cx /= bodies.length;
+    cy /= bodies.length;
+    for (const s of bodies) {
+      if (s.fixed || s.dragging) continue;
+      const dx = cx - s.x;
+      const dy = cy - s.y;
+      const d = Math.hypot(dx, dy);
+      if (d > GRAV_FREE) {
+        const f = ((d - GRAV_FREE) * GRAV) / d;
+        s.vx += dx * f;
+        s.vy += dy * f;
+      }
+    }
   }
 
   // integrate
@@ -3683,6 +3716,33 @@ $("#btn-detail-play").addEventListener("click", () => {
 
 $("#detail-sheet").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) $("#detail-sheet").classList.add("hidden");
+});
+
+// ---- Board peek: tap a placed node to see it big ----
+// Reuses loadDetail's cache but renders NO credits — mid-game those are
+// the answers. Poster + name show instantly; meta/overview fill in.
+let peekSeq = 0;
+async function openBoardPeek(item) {
+  const token = ++peekSeq;
+  $("#peek-name").textContent = item.name;
+  $("#peek-meta").textContent = TYPE_LABEL[item.type];
+  $("#peek-overview").textContent = "";
+  $("#peek-poster").innerHTML = item.img
+    ? `<img src="${item.img.replace("/w342/", "/w500/")}" alt="">`
+    : `<span class="cast-fallback">${TYPE_EMOJI[item.type]}</span>`;
+  $("#peek-modal").classList.remove("hidden");
+  try {
+    const det = await loadDetail(item);
+    if (token !== peekSeq) return;
+    $("#peek-meta").textContent = det.meta;
+    $("#peek-overview").textContent = det.overview;
+  } catch {
+    /* poster + name are already up — good enough */
+  }
+}
+
+$("#peek-modal").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) $("#peek-modal").classList.add("hidden");
 });
 
 // ===== The Box Office: browse features and pick a ticket =====
