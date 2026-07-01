@@ -78,6 +78,7 @@ Now that it's hosted, test on real hardware. Known gaps from code review, before
 - [ ] Safari specifics: View Transitions API fallback paths, `aspect-ratio` in the deck, PNG ticket download UX on iOS (no real "download" — share sheet).
 - [x] Drag lag fixed (2026-06-12): node drags painted in the pointermove handler instead of waiting for the next physics frame (one-frame cursor trail), edges of the dragged node updated in the same breath.
 - [x] Auto-fit camera (2026-07-01, Escher: big webs drift offscreen and force constant zoom-outs): after each placement/undo the view eases out to contain the whole web — only when it actually doesn't fit, chasing the still-settling nodes for ~0.7s, and any manual pan/pinch/wheel/drag cancels it immediately.
+- [x] Hint frontier bug (2026-07-01, Escher: "hints only go out 1 from the person"): stepping-stone hints always expanded from the start/goal endpoint itself, orbiting it at radius 1 forever (a person goal = endless list of their movies). Now they expand from the component node FARTHEST from the endpoint (BFS distance, random among ties, falling inward when a node's fresh credits run dry) — successive hints walk outward toward the other side.
 
 ## 13. The Archives (idea, no code — 2026-06-12)
 A separate screen like achievements but *discoveries*: a record of what you've found across games — connections discovered, chains walked, rare deep-cut placements, maybe "first time you used X". Name reserved from the Back Lot naming discussion. Spec TBD; likely wants persistence (localStorage now, Supabase later).

@@ -1198,9 +1198,11 @@ function showKnowledgeResults() {
 //      cluster to the goal-side cluster. Placing it closes (or nearly
 //      closes) the chain. Found by intersecting the credit sets the game
 //      has already fetched, so the more you've placed, the smarter it gets.
-//   2. Otherwise — a strong stepping stone one step off the goal side
-//      (then the start side, alternating), expanding the frontier so a
-//      bridge becomes visible to the next hint.
+//   2. Otherwise — a strong stepping stone off the goal side (then the
+//      start side, alternating), expanding from the FRONTIER: the component
+//      node farthest from the endpoint. Successive hints walk outward
+//      (goal → stone → stone-of-stone…) instead of orbiting the endpoint
+//      at radius 1 forever (the original bug — hints never went out past 1).
 let hintFlip = false; // flipped before use — first stepping stone favors the goal side
 
 function componentOf(key) {
@@ -1286,8 +1288,27 @@ async function giveHint() {
       item = await fetchItemByKey(bridgeKey);
     } else {
       hintFlip = !hintFlip;
-      const target = game.nodes.get(hintFlip ? game.endKey : game.startKey);
-      item = await steppingStone(target);
+      const rootKey = hintFlip ? game.endKey : game.startKey;
+      // BFS distances from the endpoint across its component, then try the
+      // farthest-out node first (random among ties) and fall back inward —
+      // steppingStone returns null when a node's fresh credits run dry
+      const dist = new Map([[rootKey, 0]]);
+      const queue = [rootKey];
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const nb of game.edges.get(cur) || [])
+          if (!dist.has(nb)) {
+            dist.set(nb, dist.get(cur) + 1);
+            queue.push(nb);
+          }
+      }
+      const frontier = [...dist.entries()]
+        .sort((a, b) => b[1] - a[1] || Math.random() - 0.5)
+        .map(([k]) => k);
+      for (const k of frontier) {
+        item = await steppingStone(game.nodes.get(k));
+        if (item) break;
+      }
     }
     if (!item) {
       setMessage("💡 No fresh hint found — keep weaving!");
