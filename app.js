@@ -62,7 +62,9 @@ async function tmdb(path, params = {}) {
 }
 
 // ---- Item model ----
-// item = { key, id, type: 'movie'|'tv'|'person', name, img }
+// item = { key, id, type: 'movie'|'tv'|'person', name, img, fame }
+// fame = raw TMDB popularity (people) / vote_count (titles); null when the
+// source response didn't carry it — unknown fame never scores either way.
 function makeItem(raw, type) {
   const t = type || raw.media_type;
   return {
@@ -73,7 +75,36 @@ function makeItem(raw, type) {
     img: raw.poster_path || raw.profile_path
       ? IMG + (raw.poster_path || raw.profile_path)
       : null,
+    fame: t === "person" ? raw.popularity ?? null : raw.vote_count ?? null,
   };
+}
+
+// The one fame vocabulary (casting-page badges + deep-cut scoring).
+// Returns null for unknown fame so scoring can skip it.
+// Person thresholds recalibrated 2026-07-01 against TMDB's reworked popularity
+// (now a compressed, trending-driven scale — megastars baseline ~5-12, character
+// actors ~2-3.5, true obscurities <1; trending people spike into the hundreds,
+// which only ever errs toward "famous"). Samples at calibration: Cruise 9.2,
+// Sandler 5.5, Rockwell 4.1, Trejo 3.4, Tobolowsky 2.6, Clint Howard 1.9,
+// Al Mancini 0.75. Title vote_count was never rescaled — those bands stand.
+function fameTier(fame, type) {
+  if (fame == null) return null;
+  if (type === "person")
+    return fame >= 4 ? "famous" : fame >= 2.2 ? "known" : fame >= 1 ? "deep cut" : "crazy";
+  return fame >= 8000 ? "famous" : fame >= 1500 ? "known" : fame >= 250 ? "deep cut" : "crazy";
+}
+
+// The wow lives in the credit, not the celebrity (Escher, 2026-07-01): a link's
+// surprise is named by its more OBSCURE end. Sandler is famous, but "Sandler
+// was in Airheads" is a deep cut — and "that guy was in Titanic" is one too.
+// famous↔famous = obvious; either end deep-cut/crazy = the pull.
+// Returns null when either end's fame is unknown (never scores either way).
+const FAME_RANK = { famous: 0, known: 1, "deep cut": 2, crazy: 3 };
+function edgeTier(a, b) {
+  const ta = fameTier(a.fame, a.type);
+  const tb = fameTier(b.fame, b.type);
+  if (!ta || !tb) return null;
+  return FAME_RANK[ta] >= FAME_RANK[tb] ? ta : tb;
 }
 
 const TYPE_LABEL = { movie: "Movie", tv: "TV Show", person: "Person" };
@@ -685,6 +716,7 @@ const game = {
   startKey: null,
   endKey: null,
   placed: 0,
+  lastPlaced: null, // key of the most recent placement — undoable until the next one
   won: false,
   over: false, // time ran out
   bar: 0, // knowledge: challenger's score to beat
@@ -733,6 +765,7 @@ async function startKnowledge(start, bar = 0, rules = null) {
   game.startKey = start.key;
   game.endKey = null;
   game.placed = 0;
+  game.lastPlaced = null;
   game.won = false;
   game.over = false;
   game.bar = bar;
@@ -779,6 +812,7 @@ async function startGame(start, end, rules = null) {
   game.startKey = start.key;
   game.endKey = end.key;
   game.placed = 0;
+  game.lastPlaced = null;
   game.won = false;
   game.over = false;
   game.target = 0;
@@ -856,6 +890,7 @@ async function startHybrid(start, goals) {
   game.startKey = start.key;
   game.endKey = goals[0].key; // aims the hint machinery at a goal
   game.placed = 0;
+  game.lastPlaced = null;
   game.won = false;
   game.over = false;
   game.target = 0;
@@ -937,6 +972,7 @@ function showHybridWin(paths) {
   ).length;
   const n = game.goals.length;
   $("#win-modal .eyebrow").textContent = "That's a wrap";
+  $("#win-stars").classList.add("hidden"); // classic-only (for now)
   $("#win-modal h1").innerHTML =
     n === 1 ? "<em>Connected.</em>" : "<em>All goals reached.</em>";
   $("#win-score").innerHTML =
@@ -1019,7 +1055,43 @@ function updateStats() {
       : game.mode === "knowledge" && game.target
         ? "/" + game.target
         : "");
+  updateUndoBtn();
 }
+
+// ---- Undo (last placement only) ----
+// Classic/hybrid only — in knowledge every placement is correct by definition,
+// so undo would just lower your own count.
+function updateUndoBtn() {
+  $("#btn-undo").classList.toggle(
+    "hidden",
+    !game.lastPlaced || game.won || game.over || game.mode === "knowledge"
+  );
+}
+
+function undoLast() {
+  const key = game.lastPlaced;
+  if (!key || game.won || game.over || game.mode === "knowledge") return;
+  const item = game.nodes.get(key);
+  if (!item) return;
+  for (const nb of game.edges.get(key) || []) game.edges.get(nb)?.delete(key);
+  game.edges.delete(key);
+  game.nodes.delete(key);
+  game.placed--; // refunds the budget spend too
+  game.lastPlaced = null;
+  sim.get(key)?.el.remove();
+  sim.delete(key);
+  for (let i = edgeEls.length - 1; i >= 0; i--) {
+    if (edgeEls[i].a === key || edgeEls[i].b === key) {
+      edgeEls[i].el.remove();
+      edgeEls.splice(i, 1);
+    }
+  }
+  updateStats();
+  if (game.mode === "hybrid") hybridCheckWin(); // re-mark goal chips (an undo can un-reach one)
+  setMessage(`↩ Took back ${item.name}.`);
+}
+
+$("#btn-undo").addEventListener("click", undoLast);
 
 // ---- Countdown timer ----
 let timerInterval = null;
@@ -1057,6 +1129,7 @@ function startTimer(force = false) {
 function timeUp() {
   if (game.won) return;
   game.over = true;
+  updateUndoBtn();
   if (questMulti()) {
     // clocking out IS the round in knowledge (unless a target was missed);
     // in classic it means the scene goes unfinished — the feature rolls on
@@ -1096,6 +1169,7 @@ function showKnowledgeResults() {
     game.target ? game.placed >= game.target : true
   );
   $("#btn-copy-challenge").classList.remove("hidden"); // hybrid wins hide it
+  $("#win-stars").classList.add("hidden"); // stars are a classic-chain thing
   $("#win-modal .eyebrow").textContent =
     game.target && game.placed >= game.target ? "Goal reached!" : "Time!";
   $("#win-modal h1").innerHTML = `<em>${game.placed} named.</em>`;
@@ -1518,6 +1592,7 @@ async function tryPlace(item) {
     game.edges.set(item.key, new Set(linked));
     for (const k of linked) game.edges.get(k).add(item.key);
     game.placed++;
+    game.lastPlaced = item.key;
 
     // drop the new node near the things it connects to, with a little scatter
     let sx = 0;
@@ -1533,13 +1608,21 @@ async function tryPlace(item) {
 
     updateStats();
     const names = linked.map((k) => game.nodes.get(k).name).join(", ");
+    // the north star, in the moment: a surprising LINK gets its flare right now
+    const linkTiers = linked.map((k) => edgeTier(item, game.nodes.get(k)));
+    const flare = linkTiers.includes("crazy")
+      ? " 🤯 crazy pull!"
+      : linkTiers.includes("deep cut")
+        ? " 🎉 deep cut!"
+        : "";
     setMessage(
       game.mode === "knowledge"
-        ? `✅ ${item.name} — ${game.placed} named!`
-        : `✅ ${item.name} placed — connects to ${names}.`,
+        ? `✅ ${item.name} — ${game.placed} named!${flare}`
+        : `✅ ${item.name} placed — connects to ${names}.${flare}`,
       "ok"
     );
     checkWin();
+    updateUndoBtn(); // a winning placement must not leave undo showing behind the modal
 
     // knowledge target hit — the scene is cleared before the clock
     if (
@@ -1560,6 +1643,7 @@ async function tryPlace(item) {
     if (budget && !game.won && game.mode !== "knowledge" && game.placed >= budget) {
       game.over = true;
       stopTimer();
+      updateUndoBtn();
       if (questMulti()) {
         setTimeout(() => endRound(false), 600);
         return;
@@ -1639,6 +1723,31 @@ function checkWin() {
 
   const steps = path.length - 1;
   recordStub(`connected in ${steps} link${steps === 1 ? "" : "s"}`, true);
+
+  // Deep-cut scoring: the chain is rated by its LINKS, not its names — a
+  // famous face is a fine bridge if you route through the weird corner of
+  // their filmography. famous↔famous links are legal but unimpressive.
+  const linkTiers = [];
+  for (let i = 0; i < path.length - 1; i++)
+    linkTiers.push(edgeTier(game.nodes.get(path[i]), game.nodes.get(path[i + 1])));
+  const clean = !linkTiers.includes("famous"); // "famous" link = both ends famous
+  const deep =
+    clean && linkTiers.some((t) => t === "deep cut" || t === "crazy");
+  const stars = 1 + (clean ? 1 : 0) + (deep ? 1 : 0);
+  // "one take": every placement ended up in the gold path — exploration is
+  // free, but the flawless line gets its applause
+  const oneTake = path.length > 2 && game.placed === path.length - 2;
+  $("#win-stars").classList.remove("hidden");
+  $("#win-stars").innerHTML =
+    `<span class="stars">${"★".repeat(stars)}${"☆".repeat(3 - stars)}</span> ` +
+    `<span class="stars-label">${
+      stars === 3
+        ? "deep-cut route — the connoisseur's path"
+        : stars === 2
+          ? "clean chain — no obvious links"
+          : "the obvious links did the heavy lifting"
+    }${oneTake ? " · 🎞 one take" : ""}</span>`;
+
   const par = game.rules?.par;
   $("#win-score").innerHTML =
     `You connected them in <b>${steps} link${steps === 1 ? "" : "s"}</b>` +
@@ -1650,13 +1759,23 @@ function checkWin() {
         : ` Creator's par: <b>${par}</b>.`
       : "");
   $("#win-path").innerHTML = path
-    .map((k) => {
+    .map((k, i) => {
       const it = game.nodes.get(k);
-      return `<div class="path-item">
+      const cell = `<div class="path-item">
         ${it.img ? `<img src="${it.img}">` : `<div class="no-img">${TYPE_EMOJI[it.type]}</div>`}
         <span>${esc(it.name)}</span></div>`;
+      if (i === path.length - 1) return cell;
+      // the badge sits on the connection — that's where the surprise lives
+      const t = linkTiers[i];
+      const isDeep = t === "deep cut" || t === "crazy";
+      return (
+        cell +
+        `<div class="arrow${isDeep ? " deep" : ""}">→${
+          isDeep ? `<span class="path-badge">${t === "crazy" ? "crazy pull" : "deep cut"}</span>` : ""
+        }</div>`
+      );
     })
-    .join(`<div class="arrow">→</div>`);
+    .join("");
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 600);
 }
 
@@ -2361,6 +2480,7 @@ async function showFinale() {
   $("#game-timer").classList.add("hidden");
   $("#btn-hint").classList.add("hidden");
   $("#btn-finish").classList.add("hidden");
+  $("#btn-undo").classList.add("hidden");
   setMessage("Every scene, one web.");
   $("#stat-placed").textContent = "Placed: " + game.nodes.size;
   await showT("game");
@@ -2413,6 +2533,7 @@ async function showFinale() {
     cleared === quest.results.length
   );
   $("#btn-copy-challenge").classList.remove("hidden"); // hybrid wins hide it
+  $("#win-stars").classList.add("hidden"); // the credits speak for themselves
   $("#win-modal .eyebrow").textContent = "That's a wrap";
   $("#win-modal h1").innerHTML = "<em>The credits roll.</em>";
   $("#win-score").innerHTML =
@@ -3026,14 +3147,12 @@ const cast = {
 };
 
 // vote_count for titles / popularity for people, mapped onto the same
-// obscurity vocabulary the difficulty presets use
+// obscurity vocabulary the difficulty presets use (thresholds live in fameTier)
 function fameBadge(raw, type) {
-  if (type === "person") {
-    const p = raw.popularity || 0;
-    return p >= 35 ? "famous" : p >= 12 ? "known" : p >= 4 ? "deep cut" : "crazy";
-  }
-  const v = raw.vote_count || 0;
-  return v >= 8000 ? "famous" : v >= 1500 ? "known" : v >= 250 ? "deep cut" : "crazy";
+  return fameTier(
+    (type === "person" ? raw.popularity : raw.vote_count) || 0,
+    type
+  );
 }
 
 function openCasting(ctx) {

@@ -1,5 +1,17 @@
 # Connection Game — TODO
 
+## 17. Core loop pass — deep-cut scoring + undo ✅ DONE (2026-07-01)
+Graduated from IDEAS.md (#1 efficiency pressure, #2 super-connectors, #3 undo) as ONE system instead of three. Decided: super-connectors stay **legal but unimpressive** (scoring beats bans); exploration stays free (waste never gates stars); groundwork for multiplayer scoring.
+- [x] Items carry `fame` (TMDB popularity for people / vote_count for titles) from every source; `fameTier()` is the single fame vocabulary (shared with the casting-page badges).
+- [x] **Person fame recalibrated (2026-07-01):** TMDB reworked popularity into a compressed trending signal (Sandler = 5.5 now!) — the old 35/12/4 bands had been misfiling A-listers as deep cuts, on the casting page too, since it shipped. New bands famous ≥4 / known ≥2.2 / deep cut ≥1 / crazy <1, calibrated against a live sample (values in the `fameTier` comment). Trending spikes only ever err toward "famous". Title vote_count bands unchanged (never rescaled).
+- [x] Classic wins star-rated by the chain's **links, not its names** (decided 2026-07-01 — "the wow lives in the credit, not the celebrity": Sandler is famous, but "Sandler was in Airheads" is a deep cut). A link's tier = its more obscure end (`edgeTier`): famous↔famous = obvious; either end deep-cut/crazy = the pull. ⭐ connected · ⭐⭐ clean chain (no famous↔famous link) · ⭐⭐⭐ clean + a deep/crazy link. Nested on purpose — famous people are fine bridges IF you route through the weird corner of their filmography. (Superseded same-day: v1 rated bridge *nodes*, which punished the famous-face-obscure-credit route.)
+- [x] "🎞 one take" flourish when every placement made the gold path (the "both" answer to waste: never punished, flawless gets applause).
+- [x] Badges sit on the win-path **arrows** ("deep cut" / "crazy pull") — the connection is what glows, not the poster.
+- [x] In-the-moment juice: a placement that creates a surprising link flares the toast right then ("🎉 deep cut!" / "🤯 crazy pull!"), all modes.
+- [x] Undo: ↩ in the game header takes back the most recent placement until the next one lands; refunds budget spend; classic/hybrid only (knowledge placements are correct by definition — decided 2026-07-01). Hybrid undo re-runs the goal-chip check (an undo can un-reach a goal).
+- Known edge (accepted): the budget-spent fail fires on the placement itself, so the *final* budget spend can't be undone — undo protects mid-run waste only.
+- Later: star-rate hybrid wins (multi-path rating is its own design); optional "house bans" toggle if stars alone don't curb super-connectors; record deep-cut finds in The Archives (#13).
+
 ## 10. The Studio — multi-scene features ✅ DONE (2026-06-11)
 The builder is now **The Studio** ("Challenge a Friend" renamed). A custom game is a *feature*: 1–5 scenes (rounds), any modes, any order.
 - [x] Scenes tray in the builder: "add current matchup as a scene", reorder, remove; cap 5. Empty reel = single-round challenge (old behavior).
