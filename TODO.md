@@ -69,7 +69,8 @@ Escher's idea: a feature "printed" as a designed movie-ticket PNG that IS the ga
 - Decision: v1 is metadata-only — the original FILE must be sent (photo-mode recompression to JPEG strips the chunk; the error message says so). The barcode slot is reserved for a real QR in v2 (vendored jsQR), which would survive recompression and become phone-camera-scannable once hosted.
 
 ## 16. Per-device testing pass (opened 2026-06-12, site is live)
-Now that it's hosted, test on real hardware. Known gaps from code review, before anyone even touches a device:
+**Scope decision (Escher, 2026-07-01): PC is the primary play surface.** Phones are companions/controllers for the coming multiplayer (join code, waiting room, name+color, answer input — a few purpose-built phone-first screens), NOT a full port of the game. The bar for the existing screens on phones drops to "not broken"; deep phone layout polish of the full game is explicitly out of scope. The mobile fixes below (pinch-zoom, dvh, touch targets) stay — they make the not-broken bar real and the board is still touchable on tablets.
+Known gaps from code review, before anyone even touches a device:
 - [x] **Board pinch-zoom** (2026-07-01) — the board tracks its touches in `boardPointers`: one pointer pans, two pinch-zoom around the finger midpoint (midpoint drift pans simultaneously), lifting one finger hands back to panning without a hiccup. Same 0.25–2.5 scale clamp as the wheel. `touch-action: none` was already set — only the gesture logic was missing.
 - [x] `100vh` audit (2026-07-01) — all six uses now pair a `100vh` fallback with a `100dvh` override (body, `.screen`, `.screen.game`, scene-editor endpoint clamp, df-deck/df-card clamps).
 - [x] Touch-target audit, first pass (2026-07-01) — `@media (pointer: coarse)` block: scene tools 28→42px, header pills fatter, suggestion rows taller. Desktop visuals untouched. Deck fan tap areas left for on-device verdict.
@@ -90,6 +91,7 @@ Phased approach (no backend exists today):
 - [x] **Phase A — Challenge links (no server) ✅:** start/goal/timer/hints encoded in the URL hash (the #7 blob, v1). Home button cycles Classic ↔ Challenge a Friend; setup screen has copy-link; win screen has "copy challenge" with score text; opening a link jumps straight onto that board with the creator's rules. NOTE: links only work for others once the game is hosted on a real URL (file:// paths don't travel).
 - [ ] **Phase B — Local same-screen:** co-op (build one web together) and versus (turn-based or split board).
   - Idea (Escher, 2026-06-12): Jackbox-style couch play — the PC hosts and its screen is the shared stage; players join a waiting room from their phones, pick a name + a color, and answer an icebreaker question shown on the host screen (e.g. "favorite actor"), answers popping up as they arrive. Build the screens (waiting room, host stage) before any backend; wire up rooms/realtime in the Supabase era. Spec TBD — to be designed together.
+  - Confirmed (Escher, 2026-07-01): the phone side is ONLY the companion screens (join code, waiting room, input) — phone-first designs of their own, not adaptations of the PC screens. PC is the primary play surface (see #16 scope decision).
 - [ ] **Phase C — Real-time online:** separate boards, win by faster time or fewer connections. Needs a small WebSocket server or Firebase-style service.
 
 ## 2. Sound effects
