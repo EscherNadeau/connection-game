@@ -1344,7 +1344,10 @@ const view = { x: 0, y: 0, scale: 1 };
 let boardActive = false;
 
 // physics tuning — heavy damping so new arrivals settle fast
-const REPULSION = 72000; // node-node push
+const REPULSION = 90000; // node-node push (local — fades to zero at REPULSE_RANGE)
+const REPULSE_RANGE = 380; // beyond this, nodes ignore each other — global push
+                         // straightens chains into lines; local push lets them
+                         // fold into clumps (Escher: "line line line", 2026-07-01)
 const REST = 250;        // edge spring rest length
 const STIFF = 0.03;      // edge spring stiffness
 const DAMP = 0.6;        // velocity damping — heavy: placements thunk, not drift
@@ -1353,7 +1356,7 @@ const SLEEP = 0.08;      // below this speed, stop moving entirely
 const MIN_SEP = 165;     // hard floor on node spacing (tokens are ~94-141px)
 const SEP_EASE = 0.45;   // fraction of overlap resolved per frame
 const GRAV = 0.0012;     // centering pull per px beyond the flat core
-const GRAV_FREE = 420;   // no gravity inside this radius of the centroid —
+const GRAV_FREE = 320;   // no gravity inside this radius of the centroid —
                          // compact webs are left alone (no fights with MIN_SEP)
 
 function applyView() {
@@ -1593,7 +1596,9 @@ function physicsTick() {
         d2 = 1;
       }
       const d = Math.sqrt(d2);
-      const f = Math.min(REPULSION / d2, MAXF);
+      if (d >= REPULSE_RANGE) continue; // out of range — no push, chains may fold
+      // linear fade to zero at the range edge — no pop at the boundary
+      const f = Math.min(REPULSION / d2, MAXF) * (1 - d / REPULSE_RANGE);
       const fx = (dx / d) * f;
       const fy = (dy / d) * f;
       if (!a.fixed && !a.dragging) { a.vx -= fx; a.vy -= fy; }
