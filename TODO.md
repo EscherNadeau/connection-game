@@ -1,5 +1,22 @@
 # Connection Game — TODO
 
+## 19. Opening Night — couch multiplayer (DESIGN LOCKED 2026-07-01; waiting room BUILT same day)
+- [x] **Waiting room shipped (2026-07-01):** `screen-lobby` host stage (room code in Bebas, QR slot dashed-out until rooms exist, icebreaker question, color-bordered poster answers popping in, player chips, Roll Film gated on 2+ players & 1+ answer) + the **phone preview** — a real local controller in a phone shell (join with code/name/color validation, icebreaker answered via TMDB search, seated screen). Fake friends join with a 🤖, think, and answer from the warmed pools. Rounds stubbed behind Roll Film.
+- [ ] **Next build: the rounds** — Blitz first (stage web + phone input + scoring + podium), then The Ensemble, then Final Cut. All still local-demo (fake friends play too).
+- [ ] Supabase era: rooms + realtime transport; QR encoder vendored then.
+PC hosts the shared stage; phones are controllers (per the #16 platform decision). Build order: **screens first** (host stage, waiting room, phone controller — playable in a local fake-players demo mode), realtime transport in the Supabase era. Supersedes/absorbs #1 Phase B.
+
+**Join flow:** room code on the stage PLUS a QR that opens the join page with the code prefilled (QR generation = vendor a tiny single-file MIT encoder, consistent with the jsQR plan for tickets v2). Phone: enter name, pick a color, answer the icebreaker **with the search** — so every answer is a real TMDB item. Host stage shows the question + answers arriving as color-bordered posters with names.
+
+**The icebreaker IS the content:** players' picks seed the rounds — a blitz round centers on someone's pick; co-op/versus rounds connect two players' picks to each other ("link Escher's favorite to Sam's favorite").
+
+**Three round types, one stage:**
+1. **Blitz** (party): center item, ~90s, everyone types at once on phones, valid connections fly onto the shared web color-coded with names. Scoring: everyone scores per valid answer (speed is NOT rewarded — cozy couch rule, decided), fame tiers multiply (deep cut ≈ 3×, flares on the stage with your name), uniqueness bonus at round end for answers nobody else got.
+2. **The ensemble** (co-op): shared classic chain, turns rotate through the colors, place anything that connects (relay variant = later house rule). Team has shared strikes — flubbed/passed turns burn one, three strikes burns the reel (decided: co-op needs tension).
+3. **Final Cut** (competitive, Escher's don't-win-inversion idea): turns rotate; whoever completes the start→goal path wins the round. The one rule creates the mind game: every placement must connect as normal, so you're trying to grow the web WITHOUT leaving a one-move finish for the next player — while counting turns so the kill lands on you. Big-cast films become landmines (they open too many finishing routes); deep cuts become defense. The fame system inverts for free. Anti-stall: placement points (fame-tiered) accrue along the way so pure chicken loses to banked points, plus a max-turn cap — if nobody cuts, "the film dies in development" and completion points go unclaimed.
+
+**Phone screen during rounds:** search box + suggestions + your score/color only. The phone NEVER shows the board — the TV is the stage (platform decision).
+
 ## 18. Now Showing — the daily connection ✅ DONE (2026-07-01)
 The daily, shipped with zero backend (graduated from IDEAS #4; name per the #14 reservation — "it means *today* on a marquee"). Same puzzle for everyone: a date-seeded RNG (FNV-1a → mulberry32) drives every pick, so all players resolve the same discover pages/rows; the first resolution caches per-date in localStorage (`dailyPuzzle`) so mid-day TMDB vote drift can't change a bill someone already saw.
 - [x] A double bill: both endpoints are titles (seeded 70/30 movie/tv), discover pages 1–8 by vote count. A deterministic forward-walk skips dupes and one-link anticlimaxes (last try accepts anything, so there's always a bill).

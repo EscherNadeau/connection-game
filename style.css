@@ -2088,3 +2088,175 @@ body.dark .wf-fantasy { color: #87a883; }
   /* search suggestion rows — taller rows, easier to hit mid-game */
   .suggestions li { padding: 12px 10px; }
 }
+
+/* ===== Opening Night — the waiting room (host stage) ===== */
+.lobby-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(980px, 100%);
+}
+.join-card {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 18px 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-soft);
+}
+.join-how { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.join-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.join-url { font-size: 0.86rem; color: var(--ink); }
+.join-code {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 3rem;
+  letter-spacing: 0.28em;
+  padding-left: 0.28em; /* optically recenters the tracked glyphs */
+  color: var(--gold);
+}
+.join-qr {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  opacity: 0.7;
+}
+.lobby-question { font-size: 1.5rem; }
+.lobby-answers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  min-height: 150px;
+}
+.lobby-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: gpop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lobby-answer img, .lobby-answer .no-img {
+  width: 88px;
+  height: 132px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 3px solid var(--pc);
+  box-shadow: 0 10px 22px -8px rgba(27, 24, 18, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: var(--paper);
+}
+.lobby-answer-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--pc);
+  color: #fff;
+}
+.lobby-players { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.player-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 2px solid var(--pc);
+  color: var(--ink);
+}
+.lobby-note { font-size: 0.74rem; color: var(--muted); font-style: italic; }
+
+/* ===== the phone preview shell — a real local controller ===== */
+.phone-shell {
+  position: relative;
+  width: 320px;
+  min-height: 560px;
+  border-radius: 38px;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-soft);
+  padding: 52px 22px 26px;
+  display: flex;
+  flex-direction: column;
+}
+.phone-notch {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  opacity: 0.85;
+}
+.phone-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  text-align: center;
+}
+.phone-screen h3 { font-size: 1.3rem; }
+.phone-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font: inherit;
+  color: var(--ink);
+  text-align: center;
+}
+#phone-code { text-transform: uppercase; letter-spacing: 0.3em; font-weight: 700; }
+.phone-colors { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.phone-color {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: var(--pc);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.phone-color:hover { transform: scale(1.12); }
+.phone-color.sel { border-color: var(--ink); transform: scale(1.12); }
+.phone-search-box { width: 100%; }
+.phone-search-box input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font: inherit;
+  color: var(--ink);
+}
+.phone-ice-pick { min-height: 160px; display: flex; align-items: center; }
+.phone-seat-swatch {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow: var(--shadow-tiny);
+}
+.phone-wait { color: var(--muted); font-size: 0.9rem; }
+#phone-join .btn, #phone-ice .btn, #phone-seated .btn { margin-top: auto; }

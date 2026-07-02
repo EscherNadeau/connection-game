@@ -297,7 +297,7 @@ async function takeRandomItem(excludeKey, type = "any", level = settings.obscuri
 }
 
 // ===== Screens =====
-const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere"];
+const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere", "lobby"];
 function show(name) {
   for (const s of screens)
     document.getElementById("screen-" + s).classList.toggle("hidden", s !== name);
@@ -4168,6 +4168,250 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
   const f = e.dataTransfer?.files?.[0];
   if (f && f.type === "image/png") redeemTicket(f);
+});
+
+// ===== Opening Night — couch multiplayer, screens-first (TODO #19) =====
+// The PC hosts the stage; phones are controllers. No transport yet: fake
+// friends and the phone preview drive the whole flow locally, so the UX is
+// real tonight and Supabase realtime only swaps the wires later.
+
+const PARTY_COLORS = [
+  { id: "coral", hex: "#e2725b" },
+  { id: "gold", hex: "#cf9c3a" },
+  { id: "sage", hex: "#7d9471" },
+  { id: "sky", hex: "#6b93b8" },
+  { id: "lavender", hex: "#8a7ae0" },
+  { id: "rose", hex: "#c76b8e" },
+  { id: "moss", hex: "#8a9a4b" },
+  { id: "slate", hex: "#7a8896" },
+];
+
+const ICEBREAKERS = [
+  "What's your favorite movie?",
+  "Who's your favorite actor?",
+  "A show you'd rewatch forever?",
+  "Best villain performance ever?",
+  "A movie everyone should see once?",
+  "Your comfort watch?",
+];
+
+const FAKE_NAMES = ["Greta", "Deakins", "Bong", "Agnès", "Spike", "Sofia", "Quentin", "Wong"];
+
+const party = {
+  code: "",
+  question: "",
+  players: [], // { id, name, color: PARTY_COLORS entry, answer: item|null, fake }
+  seq: 0,
+};
+
+function partyFreeColors() {
+  const used = new Set(party.players.map((p) => p.color.id));
+  return PARTY_COLORS.filter((c) => !used.has(c.id));
+}
+
+function openLobby() {
+  if (!party.code) {
+    // fresh room — code avoids ambiguous glyphs; question is the night's
+    const glyphs = "ABCDEFGHJKMNPQRSTUVWXYZ";
+    party.code = Array.from(
+      { length: 4 },
+      () => glyphs[Math.floor(Math.random() * glyphs.length)]
+    ).join("");
+    party.question = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
+  }
+  $("#lobby-code").textContent = party.code;
+  $("#lobby-question").textContent = party.question;
+  renderLobby();
+  showT("lobby");
+}
+
+function renderLobby() {
+  $("#lobby-players").innerHTML = party.players
+    .map(
+      (p) =>
+        `<span class="player-chip" style="--pc:${p.color.hex}">${esc(p.name)}${p.fake ? " 🤖" : ""}</span>`
+    )
+    .join("");
+  $("#lobby-answers").innerHTML = party.players
+    .filter((p) => p.answer)
+    .map(
+      (p) => `<div class="lobby-answer" style="--pc:${p.color.hex}">
+        ${p.answer.img ? `<img src="${p.answer.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[p.answer.type]}</div>`}
+        <span class="lobby-answer-name">${esc(p.name)}</span>
+      </div>`
+    )
+    .join("");
+  // the show needs an audience and at least one answered pick to seed rounds
+  $("#btn-lobby-start").disabled =
+    party.players.length < 2 || !party.players.some((p) => p.answer);
+}
+
+function seatPlayer(name, color, fake = false) {
+  const p = {
+    id: "p" + ++party.seq,
+    name,
+    color,
+    answer: null,
+    fake,
+  };
+  party.players.push(p);
+  renderLobby();
+  return p;
+}
+
+// ---- fake friends: they join, think, and answer from the warmed pools ----
+$("#btn-lobby-fake").addEventListener("click", async () => {
+  const free = partyFreeColors();
+  if (!free.length) return;
+  const used = new Set(party.players.map((p) => p.name));
+  const name = FAKE_NAMES.filter((n) => !used.has(n))[0] || "Extra #" + party.seq;
+  const p = seatPlayer(name, free[Math.floor(Math.random() * free.length)], true);
+  try {
+    await fillPool();
+    const pool = pools[settings.obscurity];
+    // a little think, then the pick pops onto the stage
+    setTimeout(() => {
+      const it = pool[Math.floor(Math.random() * Math.min(pool.length, 24))];
+      if (it && party.players.includes(p)) {
+        p.answer = structuredClone(it);
+        renderLobby();
+      }
+    }, 900 + Math.random() * 2200);
+  } catch {
+    /* no pool — the fake friend sits quietly */
+  }
+});
+
+$("#btn-lobby-back").addEventListener("click", () => showT("home"));
+$("#btn-opening").addEventListener("click", openLobby);
+
+$("#btn-lobby-start").addEventListener("click", () => {
+  // the rounds (blitz / ensemble / Final Cut) are the next build
+  alert(
+    "🎬 The rounds are in production — tonight was the dress rehearsal.\n" +
+      "Blitz, The Ensemble, and Final Cut arrive next."
+  );
+});
+
+// ---- the phone preview: a REAL local controller in a phone shell ----
+const phone = { player: null, pick: null };
+
+function phoneShow(step) {
+  for (const id of ["phone-join", "phone-ice", "phone-seated"])
+    $("#" + id).classList.toggle("hidden", id !== step);
+}
+
+$("#btn-lobby-phone").addEventListener("click", () => {
+  phone.player = null;
+  phone.pick = null;
+  $("#phone-code").value = party.code; // local demo — prefilled, editable
+  $("#phone-name").value = "";
+  $("#phone-ice-pick").innerHTML = "";
+  $("#phone-search").value = "";
+  $("#phone-ice-send").disabled = true;
+  renderPhoneColors();
+  phoneShow("phone-join");
+  $("#phone-frame").classList.remove("hidden");
+});
+
+function renderPhoneColors(selected) {
+  $("#phone-colors").innerHTML = partyFreeColors()
+    .map(
+      (c) =>
+        `<button class="phone-color${selected === c.id ? " sel" : ""}" data-c="${c.id}" style="--pc:${c.hex}"></button>`
+    )
+    .join("");
+  phoneJoinReady();
+}
+
+let phoneColor = null;
+$("#phone-colors").addEventListener("click", (e) => {
+  const el = e.target.closest(".phone-color");
+  if (!el) return;
+  phoneColor = PARTY_COLORS.find((c) => c.id === el.dataset.c);
+  renderPhoneColors(phoneColor.id);
+});
+$("#phone-name").addEventListener("input", phoneJoinReady);
+$("#phone-code").addEventListener("input", phoneJoinReady);
+
+function phoneJoinReady() {
+  $("#phone-enter").disabled = !(
+    $("#phone-name").value.trim() &&
+    phoneColor &&
+    $("#phone-code").value.trim().toUpperCase() === party.code
+  );
+}
+
+$("#phone-enter").addEventListener("click", () => {
+  if ($("#phone-enter").disabled) return;
+  phone.player = seatPlayer($("#phone-name").value.trim(), phoneColor);
+  phoneColor = null;
+  $("#phone-ice-q").textContent = party.question;
+  phoneShow("phone-ice");
+  $("#phone-search").focus();
+});
+
+// icebreaker search — same TMDB well, phone-sized
+let phoneSeq = 0;
+$("#phone-search").addEventListener("input", async (e) => {
+  const q = e.target.value.trim();
+  const token = ++phoneSeq;
+  const ul = $("#phone-suggestions");
+  if (q.length < 2) {
+    ul.classList.add("hidden");
+    return;
+  }
+  try {
+    const data = await tmdb("/search/multi", { query: q, include_adult: "false" });
+    if (token !== phoneSeq) return;
+    const rows = (data.results || [])
+      .filter((r) => r.media_type !== "person" || r.known_for_department === "Acting")
+      .filter((r) => ["movie", "tv", "person"].includes(r.media_type))
+      .slice(0, 5);
+    ul.innerHTML = rows
+      .map((r, i) => {
+        const img = r.poster_path || r.profile_path;
+        return `<li data-i="${i}">
+          ${img ? `<img src="${IMG}${img}" alt="">` : `<span class="no-img">${TYPE_EMOJI[r.media_type]}</span>`}
+          <span>${esc(r.title || r.name)}</span></li>`;
+      })
+      .join("");
+    ul.classList.toggle("hidden", !rows.length);
+    ul.dataset.rows = JSON.stringify(rows);
+  } catch {
+    ul.classList.add("hidden");
+  }
+});
+
+$("#phone-suggestions").addEventListener("click", (e) => {
+  const li = e.target.closest("li");
+  if (!li) return;
+  const rows = JSON.parse($("#phone-suggestions").dataset.rows || "[]");
+  const raw = rows[+li.dataset.i];
+  if (!raw) return;
+  phone.pick = makeItem(raw, raw.media_type);
+  $("#phone-suggestions").classList.add("hidden");
+  $("#phone-search").value = phone.pick.name;
+  $("#phone-ice-pick").innerHTML = `<div class="lobby-answer" style="--pc:${phone.player.color.hex}">
+    ${phone.pick.img ? `<img src="${phone.pick.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[phone.pick.type]}</div>`}
+    <span class="lobby-answer-name">${esc(phone.pick.name)}</span></div>`;
+  $("#phone-ice-send").disabled = false;
+});
+
+$("#phone-ice-send").addEventListener("click", () => {
+  if (!phone.pick || !phone.player) return;
+  phone.player.answer = phone.pick;
+  renderLobby(); // the poster pops onto the stage behind the phone
+  $("#phone-seat-swatch").style.setProperty("--pc", phone.player.color.hex);
+  $("#phone-seat-name").textContent = phone.player.name;
+  phoneShow("phone-seated");
+});
+
+$("#phone-close").addEventListener("click", () =>
+  $("#phone-frame").classList.add("hidden")
+);
+$("#phone-frame").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) $("#phone-frame").classList.add("hidden");
 });
 
 // ===== Now Showing — the daily connection (IDEAS #4, no backend) =====

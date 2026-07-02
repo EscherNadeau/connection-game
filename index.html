@@ -64,6 +64,7 @@
     </div>
     <button id="btn-how" class="btn ghost">how to play</button>
     <button id="btn-office" class="btn ghost">🎟 the box office</button>
+    <button id="btn-opening" class="btn ghost">🌙 opening night</button>
     <button id="btn-change-key" class="btn ghost">change api key</button>
   </div>
 </section>
@@ -278,6 +279,37 @@
   </div>
 </section>
 
+<!-- OPENING NIGHT — the couch-multiplayer waiting room (host stage).
+     Screens-first build: fake friends + the phone preview drive the whole
+     flow locally; realtime transport arrives in the Supabase era. -->
+<section id="screen-lobby" class="screen hidden">
+  <div class="lobby-stage">
+    <p class="eyebrow">Opening Night</p>
+    <h2 class="setup-title">The <em>waiting room</em>.</h2>
+
+    <div class="join-card">
+      <div class="join-how">
+        <span class="join-label">join on your phone</span>
+        <span class="join-url">eschernadeau.github.io/connection-game</span>
+      </div>
+      <div class="join-code" id="lobby-code">····</div>
+      <div class="join-qr" id="lobby-qr" title="QR joins arrive with rooms">▦</div>
+    </div>
+
+    <p class="lobby-question"><em id="lobby-question">…</em></p>
+    <div id="lobby-answers" class="lobby-answers"></div>
+    <div id="lobby-players" class="lobby-players"></div>
+
+    <div class="setup-actions lobby-actions">
+      <button id="btn-lobby-phone" class="btn ghost">📱 preview the phone</button>
+      <button id="btn-lobby-fake" class="btn ghost">＋ invite a fake friend</button>
+      <button id="btn-lobby-start" class="btn primary big" disabled>Roll Film <span class="arrow-r">→</span></button>
+      <button id="btn-lobby-back" class="btn ghost">← home</button>
+    </div>
+    <p class="lobby-note">tonight is a dress rehearsal — real phones join when rooms go live</p>
+  </div>
+</section>
+
 <!-- MODE / SETUP SCREEN -->
 <section id="screen-mode" class="screen hidden">
   <div class="setup">
@@ -489,6 +521,41 @@
     </div>
     <p class="eyebrow detail-conns-label">Connections</p>
     <div id="detail-conns" class="detail-conns"></div>
+  </div>
+</div>
+
+<!-- PHONE PREVIEW — the controller UI in a phone shell. It's a REAL local
+     controller: joining here seats an actual player in the party. -->
+<div id="phone-frame" class="modal hidden">
+  <div class="phone-shell">
+    <div class="phone-notch"></div>
+
+    <div id="phone-join" class="phone-screen">
+      <p class="eyebrow">Opening Night</p>
+      <h3>Take a <em>seat</em>.</h3>
+      <input type="text" id="phone-code" class="phone-input" placeholder="room code" maxlength="4" autocomplete="off">
+      <input type="text" id="phone-name" class="phone-input" placeholder="your name" maxlength="14" autocomplete="off">
+      <div id="phone-colors" class="phone-colors"></div>
+      <button id="phone-enter" class="btn primary" disabled>take your seat</button>
+    </div>
+
+    <div id="phone-ice" class="phone-screen hidden">
+      <p class="eyebrow">icebreaker</p>
+      <h3 id="phone-ice-q"></h3>
+      <div class="search-box phone-search-box">
+        <input type="text" id="phone-search" placeholder="search anything…" autocomplete="off">
+        <ul class="suggestions hidden" id="phone-suggestions"></ul>
+      </div>
+      <div id="phone-ice-pick" class="phone-ice-pick"></div>
+      <button id="phone-ice-send" class="btn primary" disabled>send it</button>
+    </div>
+
+    <div id="phone-seated" class="phone-screen hidden">
+      <div id="phone-seat-swatch" class="phone-seat-swatch"></div>
+      <h3 id="phone-seat-name"></h3>
+      <p class="phone-wait">you're in — eyes on the big screen 🍿</p>
+      <button id="phone-close" class="btn ghost">put the phone down</button>
+    </div>
   </div>
 </div>
 
