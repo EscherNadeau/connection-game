@@ -464,9 +464,12 @@
       <button id="btn-undo" class="btn ghost small hidden">↩ undo</button>
       <button id="btn-hint" class="btn ghost small hidden">💡 hint</button>
       <button id="btn-finish" class="btn ghost small hidden">⏹ i'm done</button>
+      <button id="btn-game-phone" class="btn ghost small hidden">📱 phone</button>
       <button id="btn-quit" class="btn ghost small">quit</button>
     </div>
   </header>
+
+  <div id="party-strip" class="party-strip hidden"></div>
 
   <div id="game-timer" class="hidden">0:00</div>
 
@@ -555,6 +558,66 @@
       <h3 id="phone-seat-name"></h3>
       <p class="phone-wait">you're in — eyes on the big screen 🍿</p>
       <button id="phone-close" class="btn ghost">put the phone down</button>
+    </div>
+
+    <!-- the marquee vote: three famous candidates, first tap locks it in -->
+    <div id="phone-vote" class="phone-screen hidden">
+      <p class="eyebrow">marquee vote</p>
+      <h3>Which one does the <em>couch</em> know?</h3>
+      <div id="phone-vote-cards" class="phone-vote-cards"></div>
+      <p class="phone-wait">first tap locks it in</p>
+    </div>
+
+    <!-- the round controller: search + your score only — the TV is the stage -->
+    <div id="phone-round" class="phone-screen hidden">
+      <p class="eyebrow">⚡ blitz</p>
+      <p class="phone-round-seed">connections of <em id="phone-round-seed"></em></p>
+      <div id="phone-round-score" class="phone-round-score">0</div>
+      <div class="search-box phone-search-box">
+        <input type="text" id="phone-round-search" placeholder="name a connection…" autocomplete="off">
+        <ul class="suggestions hidden" id="phone-round-suggestions"></ul>
+      </div>
+      <div id="phone-round-feed" class="phone-round-feed"></div>
+      <button id="phone-round-close" class="btn ghost small">put the phone down</button>
+    </div>
+  </div>
+</div>
+
+<!-- OPENING NIGHT — round title card (3-2-1) and round results
+     (uniqueness ceremony → podium). The stage shows both; phones wait. -->
+<div id="party-intro" class="modal hidden">
+  <div class="win-panel party-panel">
+    <p class="eyebrow" id="pi-eyebrow">Round 1 · Opening Night</p>
+    <h1><em>Blitz.</em></h1>
+    <div id="pi-vote" class="pi-vote hidden"></div>
+    <div class="pi-seed">
+      <div class="pi-poster" id="pi-poster"></div>
+      <div class="pi-seed-info">
+        <span class="pi-seed-by" id="pi-seed-by"></span>
+        <span class="pi-seed-name" id="pi-seed-name"></span>
+      </div>
+    </div>
+    <p class="pi-rules" id="pi-rules"></p>
+    <div class="pi-count" id="pi-count">3</div>
+  </div>
+</div>
+
+<div id="party-results" class="modal hidden">
+  <div class="win-panel party-panel">
+    <div id="ceremony" class="hidden">
+      <p class="eyebrow">the uniqueness ceremony</p>
+      <h1><em>Nobody else had it.</em></h1>
+      <div id="cer-card" class="cer-card"></div>
+      <p class="cer-hint">tap to continue</p>
+    </div>
+    <div id="podium" class="hidden">
+      <p class="eyebrow" id="pod-eyebrow">Round 1 · the night so far</p>
+      <h1><em>The podium.</em></h1>
+      <div id="pod-list" class="pod-list"></div>
+      <div class="win-actions">
+        <button id="btn-party-next" class="btn primary big">Next Round <span class="arrow-r">→</span></button>
+        <button id="btn-party-lobby" class="btn ghost">← the waiting room</button>
+      </div>
     </div>
   </div>
 </div>

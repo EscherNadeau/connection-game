@@ -2004,6 +2004,12 @@ $("#btn-quit").addEventListener("click", () => {
   stopTimer();
   $("#btn-show-results").classList.add("hidden");
   $("#round-modal").classList.add("hidden");
+  if (game.mode === "party") {
+    // the night isn't over — back to the waiting room, everyone stays seated
+    blitzTeardown();
+    showT("lobby");
+    return;
+  }
   if (builderTest) {
     builderTest = false; // abandoned test run — no par stamped
     quest.active = false;
@@ -4200,8 +4206,9 @@ const FAKE_NAMES = ["Greta", "Deakins", "Bong", "Agnès", "Spike", "Sofia", "Que
 const party = {
   code: "",
   question: "",
-  players: [], // { id, name, color: PARTY_COLORS entry, answer: item|null, fake }
+  players: [], // { id, name, color: PARTY_COLORS entry, answer: item|null, fake, score }
   seq: 0,
+  roundNum: 0,
 };
 
 function partyFreeColors() {
@@ -4253,6 +4260,7 @@ function seatPlayer(name, color, fake = false) {
     color,
     answer: null,
     fake,
+    score: 0, // the night's running total across rounds
   };
   party.players.push(p);
   renderLobby();
@@ -4286,18 +4294,22 @@ $("#btn-lobby-back").addEventListener("click", () => showT("home"));
 $("#btn-opening").addEventListener("click", openLobby);
 
 $("#btn-lobby-start").addEventListener("click", () => {
-  // the rounds (blitz / ensemble / Final Cut) are the next build
-  alert(
-    "🎬 The rounds are in production — tonight was the dress rehearsal.\n" +
-      "Blitz, The Ensemble, and Final Cut arrive next."
-  );
+  party.roundNum = 0;
+  for (const p of party.players) p.score = 0;
+  nextPartyRound();
 });
+
+function nextPartyRound() {
+  party.roundNum++;
+  // Blitz is the opener — The Ensemble and The Pitch join the bill next
+  startBlitz();
+}
 
 // ---- the phone preview: a REAL local controller in a phone shell ----
 const phone = { player: null, pick: null };
 
 function phoneShow(step) {
-  for (const id of ["phone-join", "phone-ice", "phone-seated"])
+  for (const id of ["phone-join", "phone-ice", "phone-seated", "phone-vote", "phone-round"])
     $("#" + id).classList.toggle("hidden", id !== step);
 }
 
@@ -4351,50 +4363,56 @@ $("#phone-enter").addEventListener("click", () => {
   $("#phone-search").focus();
 });
 
-// icebreaker search — same TMDB well, phone-sized
-let phoneSeq = 0;
-$("#phone-search").addEventListener("input", async (e) => {
-  const q = e.target.value.trim();
-  const token = ++phoneSeq;
-  const ul = $("#phone-suggestions");
-  if (q.length < 2) {
+// phone search — same TMDB well, phone-sized. One wiring serves every
+// phone-shell search box (icebreaker, blitz); each keeps its own stale token.
+function wirePhoneSearch(inputSel, ulSel, onPick) {
+  let seq = 0;
+  const input = $(inputSel);
+  const ul = $(ulSel);
+  input.addEventListener("input", async () => {
+    const q = input.value.trim();
+    const token = ++seq;
+    if (q.length < 2) {
+      ul.classList.add("hidden");
+      return;
+    }
+    try {
+      const data = await tmdb("/search/multi", { query: q, include_adult: "false" });
+      if (token !== seq) return;
+      const rows = (data.results || [])
+        .filter((r) => r.media_type !== "person" || r.known_for_department === "Acting")
+        .filter((r) => ["movie", "tv", "person"].includes(r.media_type))
+        .slice(0, 5);
+      ul.innerHTML = rows
+        .map((r, i) => {
+          const img = r.poster_path || r.profile_path;
+          return `<li data-i="${i}">
+            ${img ? `<img src="${IMG}${img}" alt="">` : `<span class="no-img">${TYPE_EMOJI[r.media_type]}</span>`}
+            <span>${esc(r.title || r.name)}</span></li>`;
+        })
+        .join("");
+      ul.classList.toggle("hidden", !rows.length);
+      ul.dataset.rows = JSON.stringify(rows);
+    } catch {
+      ul.classList.add("hidden");
+    }
+  });
+  ul.addEventListener("click", (e) => {
+    const li = e.target.closest("li");
+    if (!li) return;
+    const raw = JSON.parse(ul.dataset.rows || "[]")[+li.dataset.i];
+    if (!raw) return;
     ul.classList.add("hidden");
-    return;
-  }
-  try {
-    const data = await tmdb("/search/multi", { query: q, include_adult: "false" });
-    if (token !== phoneSeq) return;
-    const rows = (data.results || [])
-      .filter((r) => r.media_type !== "person" || r.known_for_department === "Acting")
-      .filter((r) => ["movie", "tv", "person"].includes(r.media_type))
-      .slice(0, 5);
-    ul.innerHTML = rows
-      .map((r, i) => {
-        const img = r.poster_path || r.profile_path;
-        return `<li data-i="${i}">
-          ${img ? `<img src="${IMG}${img}" alt="">` : `<span class="no-img">${TYPE_EMOJI[r.media_type]}</span>`}
-          <span>${esc(r.title || r.name)}</span></li>`;
-      })
-      .join("");
-    ul.classList.toggle("hidden", !rows.length);
-    ul.dataset.rows = JSON.stringify(rows);
-  } catch {
-    ul.classList.add("hidden");
-  }
-});
+    onPick(makeItem(raw, raw.media_type));
+  });
+}
 
-$("#phone-suggestions").addEventListener("click", (e) => {
-  const li = e.target.closest("li");
-  if (!li) return;
-  const rows = JSON.parse($("#phone-suggestions").dataset.rows || "[]");
-  const raw = rows[+li.dataset.i];
-  if (!raw) return;
-  phone.pick = makeItem(raw, raw.media_type);
-  $("#phone-suggestions").classList.add("hidden");
-  $("#phone-search").value = phone.pick.name;
+wirePhoneSearch("#phone-search", "#phone-suggestions", (item) => {
+  phone.pick = item;
+  $("#phone-search").value = item.name;
   $("#phone-ice-pick").innerHTML = `<div class="lobby-answer" style="--pc:${phone.player.color.hex}">
-    ${phone.pick.img ? `<img src="${phone.pick.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[phone.pick.type]}</div>`}
-    <span class="lobby-answer-name">${esc(phone.pick.name)}</span></div>`;
+    ${item.img ? `<img src="${item.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[item.type]}</div>`}
+    <span class="lobby-answer-name">${esc(item.name)}</span></div>`;
   $("#phone-ice-send").disabled = false;
 });
 
@@ -4410,9 +4428,518 @@ $("#phone-ice-send").addEventListener("click", () => {
 $("#phone-close").addEventListener("click", () =>
   $("#phone-frame").classList.add("hidden")
 );
+$("#phone-round-close").addEventListener("click", () =>
+  $("#phone-frame").classList.add("hidden")
+);
 $("#phone-frame").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) $("#phone-frame").classList.add("hidden");
 });
+
+// ---- ⚡ Blitz — the opener round (first of three, per the 2026-07-02 study) ----
+// The stage borrows the knowledge-mode board: one fixed center (someone's
+// icebreaker pick), everyone types at once on phones, valid answers land
+// color-coded with the namer's tag. game.mode = "party" keeps every solo
+// code path (win checks, undo, stub recording) out of the way; the round
+// runs its own clock, scoring, and end-of-round ceremony.
+// Scoring (cozy couch rules): speed pays nothing; the LINK's fame tier is
+// the multiplier; answers nobody else got pay double at the ceremony.
+
+const BLITZ_SECONDS = 90;
+const BLITZ_PTS = { famous: 100, known: 200, "deep cut": 300, crazy: 400 };
+
+const blitz = {
+  on: false,
+  seed: null,
+  answers: new Map(), // item key -> { item, tier, pts, byIds } — byIds[0] named it first
+  named: new Map(), // player id -> Set of keys they answered (echoes pay, repeats don't)
+  pts: new Map(), // player id -> round points (ceremony bonuses land here too)
+  clockId: null,
+  botTimers: [],
+};
+
+async function startBlitz() {
+  // The marquee vote (2026-07-02, replaced icebreaker-pick seeding): three
+  // RANDOM famous candidates — nobody's pick, nobody's edge. The couch votes
+  // what it knows, so the seed self-selects common ground; picks still seed
+  // Ensemble/Pitch, where a route matters more than a cast list in every head.
+  // titles only: famous-band titles are vote-count-sorted (truly known);
+  // famous-band PEOPLE ride TMDB's trending signal and can be nobodies
+  const candType = () => (Math.random() < 0.65 ? "movie" : "tv");
+  let cands;
+  try {
+    cands = [
+      await takeRandomItem(null, candType(), "famous"),
+      await takeRandomItem(null, candType(), "famous"),
+      await takeRandomItem(null, candType(), "famous"),
+    ];
+  } catch {
+    alert("TMDB isn't answering — the marquee stays dark. Try again in a moment.");
+    showT("lobby");
+    return;
+  }
+
+  blitz.on = true;
+  blitz.seed = null; // the vote decides
+  blitz.answers = new Map();
+  blitz.named = new Map(party.players.map((p) => [p.id, new Set()]));
+  blitz.pts = new Map(party.players.map((p) => [p.id, 0]));
+  blitz.botTimers = [];
+
+  // the shared game object hosts the board; "party" mode sidelines solo paths
+  game.mode = "party";
+  game.nodes = new Map();
+  game.edges = new Map();
+  game.startKey = null;
+  game.endKey = null;
+  game.placed = 0;
+  game.lastPlaced = null;
+  game.won = false;
+  game.over = false;
+  game.rules = null;
+  game.target = 0;
+  game.bar = 0;
+  game.phase = 0;
+  game.goals = [];
+  game.goalKeys = null;
+
+  stopTimer();
+  sim.clear();
+  edgeEls.length = 0;
+  nodesLayer.innerHTML = "";
+  edgesSvg.innerHTML = "";
+  $("#btn-show-results").classList.add("hidden");
+  $("#btn-hint").classList.add("hidden");
+  $("#btn-finish").classList.add("hidden");
+  $("#btn-game-phone").classList.toggle("hidden", !phone.player);
+  $("#screen-game").classList.add("party-live");
+  $("#game-goal").innerHTML =
+    `<span class="goal-start">⚡ Blitz</span><span class="goal-sep">·</span>` +
+    `<span class="goal-end">the marquee vote…</span>`;
+  setMessage("");
+  renderPartyStrip();
+  await showT("game");
+
+  // --- the vote: cards on the stage, one tap on the phones, dots as they land
+  marquee.cands = cands;
+  marquee.votes = new Map();
+  marquee.open = true;
+  renderMarquee();
+  $("#pi-eyebrow").textContent = `Round ${party.roundNum} · Opening Night`;
+  $("#pi-vote").classList.remove("hidden");
+  $("#party-intro .pi-seed").classList.add("hidden");
+  $("#pi-rules").textContent = "which one does the couch know? vote on your phones";
+  const count = $("#pi-count");
+  $("#party-intro").classList.remove("hidden");
+  if (phone.player) {
+    $("#phone-frame").classList.remove("hidden"); // the ballot opens itself
+    renderPhoneVote();
+    phoneShow("phone-vote");
+  }
+  for (const b of party.players.filter((p) => p.fake))
+    blitz.botTimers.push(
+      setTimeout(() => castVote(b, Math.floor(Math.random() * 3)), 900 + Math.random() * 4000)
+    );
+  await new Promise((res) => {
+    let left = VOTE_SECONDS;
+    count.textContent = left;
+    const iv = setInterval(() => {
+      left--;
+      count.textContent = left;
+      if (left <= 0) finish();
+    }, 1000);
+    function finish() {
+      clearInterval(iv);
+      marquee.resolve = null;
+      res();
+    }
+    marquee.resolve = finish; // castVote short-circuits when everyone has voted
+  });
+  marquee.open = false;
+  if (!blitz.on) return; // torn down mid-vote
+
+  // tally — majority wins, ties draw straws
+  const tally = [0, 0, 0];
+  for (const i of marquee.votes.values()) tally[i]++;
+  const max = Math.max(...tally);
+  const top = [0, 1, 2].filter((i) => tally[i] === max);
+  const winIdx = top[Math.floor(Math.random() * top.length)];
+  const seed = structuredClone(marquee.cands[winIdx]);
+  blitz.seed = seed;
+  for (const [i, el] of [...$("#pi-vote").children].entries())
+    el.classList.add(i === winIdx ? "won" : "lost");
+  await new Promise((r) => setTimeout(r, 1400));
+  if (!blitz.on) return;
+
+  // --- the winner takes the marquee, then action
+  $("#pi-vote").classList.add("hidden");
+  $("#party-intro .pi-seed").classList.remove("hidden");
+  $("#pi-poster").innerHTML = seed.img
+    ? `<img src="${seed.img}" alt="">`
+    : `<div class="no-img">${TYPE_EMOJI[seed.type]}</div>`;
+  $("#pi-seed-by").textContent = "the couch's pick";
+  $("#pi-seed-by").style.setProperty("--pc", "var(--gold)");
+  $("#pi-seed-name").textContent = seed.name;
+  $("#pi-rules").textContent =
+    `name anything connected — ${BLITZ_SECONDS} seconds — deep cuts pay triple · uniques pay double · echoes half`;
+  count.textContent = "🎬";
+
+  // seat the seed on the board while the card lingers
+  game.nodes.set(seed.key, seed);
+  game.edges.set(seed.key, new Set());
+  game.startKey = seed.key;
+  $("#game-goal").innerHTML =
+    `<span class="goal-start">⚡ Blitz</span><span class="goal-sep">·</span>` +
+    `<span class="goal-end">${esc(seed.name)}</span>`;
+  addBoardNode(seed, 0, 0, true);
+  const rect = viewport.getBoundingClientRect();
+  view.scale = 1;
+  view.x = rect.width / 2;
+  view.y = rect.height / 2 - 30;
+  applyView();
+  boardActive = true;
+  getConnections(seed).catch(() => {}); // validates answers AND waters the bots
+
+  // the phone flips to its round controller (feed starts clean each round)
+  $("#phone-round-seed").textContent = seed.name;
+  $("#phone-round-feed").innerHTML = "";
+  if (phone.player) {
+    $("#phone-round-score").textContent = "0";
+    $("#phone-round-score").style.setProperty("--pc", phone.player.color.hex);
+  }
+
+  await new Promise((r) => setTimeout(r, 1600));
+  $("#party-intro").classList.add("hidden");
+  if (!blitz.on) return; // quit during the reveal — nothing to start
+
+  blitzClock(BLITZ_SECONDS);
+  scheduleBots();
+  if (phone.player && !$("#phone-frame").classList.contains("hidden"))
+    phoneRoundShow();
+}
+
+// ---- the marquee vote: three random famous candidates, the couch picks ----
+const VOTE_SECONDS = 10;
+const marquee = { cands: [], votes: new Map(), open: false, resolve: null };
+
+function castVote(player, idx) {
+  if (!marquee.open || marquee.votes.has(player.id)) return;
+  marquee.votes.set(player.id, idx);
+  renderMarquee();
+  if (marquee.votes.size >= party.players.length) marquee.resolve?.();
+}
+
+function renderMarquee() {
+  $("#pi-vote").innerHTML = marquee.cands
+    .map((c, i) => {
+      const dots = party.players
+        .filter((p) => marquee.votes.get(p.id) === i)
+        .map((p) => `<span class="vote-dot" style="--pc:${p.color.hex}"></span>`)
+        .join("");
+      return `<div class="pi-cand" data-i="${i}">
+        ${c.img ? `<img src="${c.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[c.type]}</div>`}
+        <span class="pi-cand-name">${esc(c.name)}</span>
+        <div class="vote-dots">${dots}</div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderPhoneVote() {
+  $("#phone-vote-cards").innerHTML = marquee.cands
+    .map(
+      (c, i) => `<button class="phone-vote-card" data-i="${i}">
+        ${c.img ? `<img src="${c.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[c.type]}</div>`}
+        <span>${esc(c.name)}</span>
+      </button>`
+    )
+    .join("");
+}
+
+$("#phone-vote-cards").addEventListener("click", (e) => {
+  const el = e.target.closest(".phone-vote-card");
+  if (!el || !phone.player || marquee.votes.has(phone.player.id)) return;
+  castVote(phone.player, +el.dataset.i);
+  el.classList.add("sel");
+});
+
+// reuses the header clock element + its warn styling, but not startTimer —
+// timeUp() routes to solo results, and 90s is the round's own rule
+function blitzClock(seconds) {
+  timeLeft = seconds;
+  $("#game-timer").classList.remove("hidden");
+  renderTimer();
+  blitz.clockId = setInterval(() => {
+    timeLeft--;
+    renderTimer();
+    if (timeLeft <= 0) endBlitz();
+  }, 1000);
+}
+
+function renderPartyStrip() {
+  $("#party-strip").classList.remove("hidden");
+  $("#party-strip").innerHTML = [...party.players]
+    .sort(
+      (a, b) =>
+        (b.score || 0) + (blitz.pts.get(b.id) || 0) -
+        ((a.score || 0) + (blitz.pts.get(a.id) || 0))
+    )
+    .map(
+      (p) =>
+        `<span class="party-score" style="--pc:${p.color.hex}">${esc(p.name)}${p.fake ? " 🤖" : ""}<b>${(p.score || 0) + (blitz.pts.get(p.id) || 0)}</b></span>`
+    )
+    .join("");
+}
+
+// One answer, any player. Returns { ok, note?, pts?, tier? } for the phone feed.
+async function blitzAnswer(player, item) {
+  if (!blitz.on || !blitz.seed) return { ok: false, note: "the round is over" };
+  if (item.key === blitz.seed.key)
+    return { ok: false, note: "that's the center itself" };
+  const mine = blitz.named.get(player.id);
+  if (mine.has(item.key)) return { ok: false, note: "you already had it" };
+  let ans = blitz.answers.get(item.key);
+  if (!ans) {
+    if (!(await connects(item, blitz.seed)))
+      return { ok: false, note: `not connected to ${blitz.seed.name}` };
+    if (!blitz.on) return { ok: false, note: "the round is over" }; // clock beat the check
+    if (mine.has(item.key)) return { ok: false, note: "you already had it" };
+    ans = blitz.answers.get(item.key); // someone may have landed it mid-await
+  }
+  mine.add(item.key);
+  let paid = ans ? Math.round(ans.pts / 2) : 0;
+  if (ans) {
+    // an echo — pays HALF (decided 2026-07-02): knowing it first matters,
+    // but parroting the couch still keeps you on the board
+    ans.byIds.push(player.id);
+    blitz.pts.set(player.id, blitz.pts.get(player.id) + paid);
+    sim
+      .get(item.key)
+      ?.el.querySelector(".token")
+      ?.animate(
+        [
+          { boxShadow: `0 0 0 0 ${player.color.hex}` },
+          { boxShadow: "0 0 0 18px transparent" },
+        ],
+        { duration: 550, easing: "ease-out" }
+      );
+  } else {
+    const tier = edgeTier(item, blitz.seed);
+    const pts = BLITZ_PTS[tier] ?? 100; // unknown fame pays base — never punished
+    ans = { item, tier, pts, byIds: [player.id] };
+    paid = pts;
+    blitz.answers.set(item.key, ans);
+    blitz.pts.set(player.id, blitz.pts.get(player.id) + pts);
+    game.nodes.set(item.key, item);
+    game.edges.get(blitz.seed.key).add(item.key);
+    game.edges.set(item.key, new Set([blitz.seed.key]));
+    const c = sim.get(blitz.seed.key);
+    const s = addBoardNode(
+      item,
+      c.x + (Math.random() - 0.5) * 260,
+      c.y + (Math.random() - 0.5) * 260
+    );
+    s.el.classList.add("party");
+    s.el.style.setProperty("--pc", player.color.hex);
+    s.el
+      .querySelector(".gnode-label")
+      .insertAdjacentHTML("afterend", `<div class="gnode-by">${esc(player.name)}</div>`);
+    addEdgeLine(item.key, blitz.seed.key);
+    fitBoard();
+    const flare =
+      tier === "crazy" ? " 🤯 crazy pull!" : tier === "deep cut" ? " 🎉 deep cut!" : "";
+    setMessage(`⚡ ${player.name} — ${item.name}.${flare}`, flare ? "ok" : undefined);
+  }
+  renderPartyStrip();
+  if (player === phone.player)
+    $("#phone-round-score").textContent = blitz.pts.get(player.id);
+  return { ok: true, pts: paid, tier: ans.tier, echo: ans.byIds.length > 1 };
+}
+
+// ---- fake friends play too: they draw from the seed's real credit set ----
+function scheduleBots() {
+  for (const p of party.players.filter((pl) => pl.fake)) {
+    let t = 3500 + Math.random() * 6000; // first thought takes a moment
+    const n = 3 + Math.floor(Math.random() * 5); // 3-7 answers a round
+    for (let i = 0; i < n; i++) {
+      if (t > BLITZ_SECONDS * 1000 - 2000) break;
+      blitz.botTimers.push(setTimeout(() => botAnswer(p), t));
+      t += 5000 + Math.random() * 9000;
+    }
+  }
+}
+
+async function botAnswer(p) {
+  if (!blitz.on) return;
+  try {
+    const well = [...(await getConnections(blitz.seed))].filter(
+      (k) => !blitz.named.get(p.id).has(k)
+    );
+    if (!well.length) return;
+    let item = await fetchItemByKey(well[Math.floor(Math.random() * well.length)]);
+    // savant guard: bots re-roll most crazy pulls so they read as human
+    if (edgeTier(item, blitz.seed) === "crazy" && Math.random() < 0.65)
+      item = await fetchItemByKey(well[Math.floor(Math.random() * well.length)]);
+    if (blitz.on) await blitzAnswer(p, item);
+  } catch {
+    /* the fake friend blanked on that one */
+  }
+}
+
+// ---- round end: TIME! → the uniqueness ceremony → the podium ----
+function endBlitz() {
+  if (!blitz.on) return;
+  blitz.on = false;
+  clearInterval(blitz.clockId);
+  for (const id of blitz.botTimers) clearTimeout(id);
+  blitz.botTimers = [];
+  setMessage("🎬 TIME! Eyes on the stage.", "ok");
+  if (phone.player) {
+    $("#phone-seat-swatch").style.setProperty("--pc", phone.player.color.hex);
+    $("#phone-seat-name").textContent = phone.player.name;
+    phoneShow("phone-seated");
+    // the local demo phone would otherwise cover the ceremony — put it
+    // down automatically; the next round's ballot picks it back up
+    $("#phone-frame").classList.add("hidden");
+  }
+  setTimeout(startCeremony, 1200);
+}
+
+let cerQueue = [];
+let cerTimer = null;
+
+function startCeremony() {
+  cerQueue = [...blitz.answers.values()]
+    .filter((a) => a.byIds.length === 1)
+    .sort((a, b) => a.pts - b.pts); // crescendo — the wildest pull goes last
+  $("#podium").classList.add("hidden");
+  $("#party-results").classList.remove("hidden");
+  if (!cerQueue.length) {
+    $("#ceremony").classList.add("hidden");
+    renderPodium();
+    return;
+  }
+  $("#ceremony").classList.remove("hidden");
+  stepCeremony();
+}
+
+function stepCeremony() {
+  clearTimeout(cerTimer);
+  const a = cerQueue.shift();
+  if (!a) {
+    $("#ceremony").classList.add("hidden");
+    renderPodium();
+    return;
+  }
+  const p = party.players.find((pl) => pl.id === a.byIds[0]);
+  blitz.pts.set(p.id, blitz.pts.get(p.id) + a.pts); // nobody else had it — it pays double
+  $("#cer-card").innerHTML = `
+    <div class="lobby-answer" style="--pc:${p.color.hex}">
+      ${a.item.img ? `<img src="${a.item.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[a.item.type]}</div>`}
+      <span class="lobby-answer-name">${esc(p.name)}</span>
+    </div>
+    <div class="cer-info">
+      <span class="cer-item">${esc(a.item.name)}</span>
+      <span class="cer-note">only ${esc(p.name)} had it${a.tier === "crazy" || a.tier === "deep cut" ? ` — a ${a.tier}` : ""}</span>
+      <span class="cer-pts">+${a.pts} · ×2</span>
+    </div>`;
+  cerTimer = setTimeout(stepCeremony, 2600);
+}
+
+// tapping the ceremony advances it; podium buttons handle themselves
+$("#party-results").addEventListener("click", (e) => {
+  if (!$("#ceremony").classList.contains("hidden") && !e.target.closest(".btn"))
+    stepCeremony();
+});
+
+function renderPodium() {
+  clearTimeout(cerTimer);
+  for (const p of party.players) p.score = (p.score || 0) + (blitz.pts.get(p.id) || 0);
+  blitz.pts = new Map(); // banked — the strip and podium now read p.score
+  const ranked = [...party.players].sort((a, b) => b.score - a.score);
+  const medals = ["🥇", "🥈", "🥉"];
+  $("#pod-eyebrow").textContent = `Round ${party.roundNum} · the night so far`;
+  $("#pod-list").innerHTML = ranked
+    .map(
+      (p, i) => `<div class="pod-row" style="--pc:${p.color.hex}">
+        <span class="pod-medal">${medals[i] || ""}</span>
+        <span class="pod-name">${esc(p.name)}${p.fake ? " 🤖" : ""}</span>
+        <span class="pod-total">${p.score}</span>
+      </div>`
+    )
+    .join("");
+  $("#podium").classList.remove("hidden");
+}
+
+$("#btn-party-next").addEventListener("click", () => {
+  $("#party-results").classList.add("hidden");
+  boardActive = false;
+  nextPartyRound();
+});
+
+$("#btn-party-lobby").addEventListener("click", () => {
+  blitzTeardown();
+  showT("lobby");
+});
+
+// hands the shared board back to solo play; the party stays seated
+function blitzTeardown() {
+  blitz.on = false;
+  marquee.open = false;
+  marquee.resolve = null;
+  clearInterval(blitz.clockId);
+  clearTimeout(cerTimer);
+  for (const id of blitz.botTimers) clearTimeout(id);
+  blitz.botTimers = [];
+  boardActive = false;
+  game.mode = "classic";
+  $("#screen-game").classList.remove("party-live");
+  $("#party-strip").classList.add("hidden");
+  $("#btn-game-phone").classList.add("hidden");
+  $("#game-timer").classList.add("hidden");
+  $("#party-intro").classList.add("hidden");
+  $("#party-results").classList.add("hidden");
+  if (phone.player) {
+    $("#phone-seat-swatch").style.setProperty("--pc", phone.player.color.hex);
+    $("#phone-seat-name").textContent = phone.player.name;
+    phoneShow("phone-seated");
+  }
+}
+
+function phoneRoundShow() {
+  $("#phone-round-seed").textContent = blitz.seed.name;
+  $("#phone-round-score").textContent = blitz.pts.get(phone.player.id) || 0;
+  $("#phone-round-score").style.setProperty("--pc", phone.player.color.hex);
+  phoneShow("phone-round");
+  $("#phone-round-search").focus();
+}
+
+$("#btn-game-phone").addEventListener("click", () => {
+  $("#phone-frame").classList.remove("hidden");
+  if (blitz.on && phone.player) phoneRoundShow();
+});
+
+wirePhoneSearch("#phone-round-search", "#phone-round-suggestions", async (item) => {
+  const input = $("#phone-round-search");
+  input.value = "";
+  input.focus();
+  if (!phone.player || !blitz.on) return;
+  const row = phoneFeedRow(`⏳ ${esc(item.name)}…`);
+  const res = await blitzAnswer(phone.player, item);
+  row.innerHTML = res.ok
+    ? `✓ ${esc(item.name)} <b>+${res.pts}</b>${res.echo ? " · echo" : ""}${res.tier === "deep cut" || res.tier === "crazy" ? ` · ${res.tier}` : ""}`
+    : `✗ ${esc(item.name)} — ${esc(res.note)}`;
+  row.classList.toggle("bad", !res.ok);
+});
+
+function phoneFeedRow(html) {
+  const feed = $("#phone-round-feed");
+  const row = document.createElement("div");
+  row.className = "phone-feed-row";
+  row.innerHTML = html;
+  feed.prepend(row);
+  while (feed.children.length > 8) feed.lastChild.remove();
+  return row;
+}
 
 // ===== Now Showing — the daily connection (IDEAS #4, no backend) =====
 // One date-seeded double bill for everyone: a seeded RNG drives every pick,

@@ -2184,6 +2184,9 @@ body.dark .wf-fantasy { color: #87a883; }
 .lobby-note { font-size: 0.74rem; color: var(--muted); font-style: italic; }
 
 /* ===== the phone preview shell — a real local controller ===== */
+/* the phone is "another device": it must stay tappable above stage modals
+   (the marquee vote runs while #party-intro covers the stage) */
+#phone-frame { z-index: 120; }
 .phone-shell {
   position: relative;
   width: 320px;
@@ -2260,3 +2263,205 @@ body.dark .wf-fantasy { color: #87a883; }
 }
 .phone-wait { color: var(--muted); font-size: 0.9rem; }
 #phone-join .btn, #phone-ice .btn, #phone-seated .btn { margin-top: auto; }
+
+/* ===== opening night rounds: the stage in party mode ===== */
+/* phones do the typing — the stage search box hides, the message toast stays */
+.party-live .game-search .search-box { display: none; }
+.party-live #stat-placed { display: none; }
+
+.party-strip {
+  position: absolute;
+  top: 84px;
+  left: 14px;
+  z-index: 29;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.party-score {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 2px solid var(--pc);
+  background: var(--card);
+  background-image: var(--grain);
+  color: var(--ink);
+  box-shadow: var(--shadow-tiny);
+}
+.party-score b { font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+/* answers land color-coded: the ring and the namer tag say whose it was */
+.gnode.party .token {
+  box-shadow: 0 0 0 3px var(--pc), 0 10px 26px -8px rgba(0, 0, 0, 0.4);
+}
+.gnode-by {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--pc);
+  color: #fff;
+}
+
+/* the round title card */
+.party-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.pi-seed { display: flex; align-items: center; gap: 18px; }
+.pi-poster img, .pi-poster .no-img {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: var(--paper);
+}
+.pi-seed-info { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.pi-seed-by {
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--pc);
+  color: #fff;
+}
+.pi-seed-name { font-size: 1.5rem; font-weight: 700; }
+.pi-rules { color: var(--muted); font-size: 0.9rem; font-style: italic; }
+.pi-count {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 4rem;
+  line-height: 1;
+  color: var(--gold);
+  min-height: 64px;
+}
+
+/* the marquee vote: three famous candidates on the stage, dots = voters */
+.pi-vote { display: flex; gap: 20px; justify-content: center; }
+.pi-cand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 132px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.pi-cand img, .pi-cand .no-img {
+  width: 112px;
+  height: 168px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  background: var(--paper);
+}
+.pi-cand-name { font-size: 0.8rem; font-weight: 600; text-align: center; }
+.vote-dots { display: flex; gap: 4px; min-height: 12px; }
+.vote-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--pc);
+  animation: gpop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pi-cand.won img { box-shadow: 0 0 0 3px var(--gold), 0 0 26px rgba(207, 156, 58, 0.5); }
+.pi-cand.lost { opacity: 0.35; transform: scale(0.94); }
+
+.phone-vote-cards { display: flex; gap: 8px; width: 100%; }
+.phone-vote-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.phone-vote-card img, .phone-vote-card .no-img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: var(--paper);
+}
+.phone-vote-card span { font-size: 0.66rem; font-weight: 600; }
+.phone-vote-card.sel { border-color: var(--gold); }
+
+/* the ceremony: one unique answer at a time, then the podium */
+.cer-card {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+.cer-info { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.cer-item { font-size: 1.3rem; font-weight: 700; }
+.cer-note { color: var(--muted); font-size: 0.88rem; font-style: italic; }
+.cer-pts { color: var(--gold); font-weight: 700; font-size: 1.1rem; }
+.cer-hint { color: var(--muted); font-size: 0.74rem; font-style: italic; }
+
+.pod-list { display: flex; flex-direction: column; gap: 8px; width: min(360px, 100%); }
+.pod-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--pc);
+  background: var(--card);
+  background-image: var(--grain);
+  animation: gpop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pod-medal { width: 26px; font-size: 1.1rem; }
+.pod-name { font-weight: 600; flex: 1; text-align: left; }
+.pod-round { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.pod-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* the phone during a round: seed, your score, search, your feed */
+.phone-round-seed { font-size: 0.95rem; }
+.phone-round-score {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 2.2rem;
+  line-height: 1;
+  padding: 6px 22px 2px;
+  border-radius: 999px;
+  border: 3px solid var(--pc);
+  font-variant-numeric: tabular-nums;
+}
+.phone-round-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  overflow: hidden;
+}
+.phone-feed-row {
+  font-size: 0.78rem;
+  text-align: left;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  animation: gpop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.phone-feed-row.bad { color: var(--goal); }
+#phone-round .suggestions { text-align: left; }
