@@ -1019,6 +1019,38 @@ input:focus { border-color: rgba(27,24,18,0.35); box-shadow: 0 6px 24px -6px rgb
 .peek-panel { max-width: 520px; }
 .peek-panel .detail-poster { width: 190px; }
 
+/* ===== Now Showing — the daily strip on home ===== */
+.daily-slot { min-height: 58px; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
+.daily-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  background: var(--card);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-tiny);
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  transition: transform 0.15s;
+}
+.daily-strip:hover { transform: translateY(-2px); }
+.daily-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  white-space: nowrap;
+}
+#daily-bill { font-family: "Instrument Serif", serif; font-style: italic; font-size: 1.02rem; }
+.daily-sep { color: var(--gold); }
+.daily-status { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.win-daily { color: var(--muted); font-size: 0.9rem; margin-top: -10px; }
+.win-daily ~ #win-path { margin-top: 4px; }
+
 .detail-conns-label { margin-bottom: 0; }
 .detail-conns {
   display: flex;

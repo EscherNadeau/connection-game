@@ -55,6 +55,13 @@
       <button id="mode-next" class="btn icon mode-arrow" title="Next mode">›</button>
     </div>
     <p id="mode-desc" class="mode-desc">Random corners of cinema — link them.</p>
+    <div class="daily-slot"><!-- reserved height — the strip fades in without shifting the hero -->
+      <button id="daily-strip" class="daily-strip hidden">
+        <span class="daily-label">🎞 Now Showing</span>
+        <span id="daily-bill"></span>
+        <span id="daily-status" class="daily-status"></span>
+      </button>
+    </div>
     <button id="btn-how" class="btn ghost">how to play</button>
     <button id="btn-office" class="btn ghost">🎟 the box office</button>
     <button id="btn-change-key" class="btn ghost">change api key</button>
@@ -456,9 +463,11 @@
     <h1><em>Connected.</em></h1>
     <p id="win-stars" class="win-stars hidden"></p>
     <p id="win-score"></p>
+    <p id="win-daily" class="win-daily hidden"></p>
     <div id="win-path" class="win-path"></div>
     <div class="win-actions">
       <button id="btn-play-again" class="btn primary big">Play Again <span class="arrow-r">→</span></button>
+      <button id="btn-share-daily" class="btn ghost hidden">🎞 share today's result</button>
       <button id="btn-copy-challenge" class="btn ghost">🔗 copy challenge</button>
       <button id="btn-view-web" class="btn ghost">🕸 view the web</button>
     </div>

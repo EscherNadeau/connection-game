@@ -347,6 +347,7 @@ $("#key-save").addEventListener("click", async () => {
     showT("home");
     fillPool().catch(() => {});
     initPosterRain();
+    initDailyStrip();
     tryLoadChallenge(); // a first-time player may have arrived via a link
   } catch {
     $("#key-error").textContent = "That key didn't work — TMDB rejected it.";
@@ -757,6 +758,7 @@ $("#btn-start-game").addEventListener("click", () => {
 // Knowledge blitz: one subject in the center, name as many direct
 // connections as the clock allows. `bar` is a challenger's score to beat.
 async function startKnowledge(start, bar = 0, rules = null) {
+  dailyActive = false;
   lastEndpoints = { start: structuredClone(start), end: null };
   game.rules = rules;
   game.mode = "knowledge";
@@ -804,6 +806,8 @@ async function startKnowledge(start, bar = 0, rules = null) {
 }
 
 async function startGame(start, end, rules = null) {
+  dailyActive = pendingDaily; // Now Showing arrives through here
+  pendingDaily = false;
   lastEndpoints = { start: structuredClone(start), end: structuredClone(end) };
   game.rules = rules;
   game.mode = "classic";
@@ -838,7 +842,13 @@ async function startGame(start, end, rules = null) {
     (extras.length ? `<span class="goal-extra">· ${extras.join(" · ")}</span>` : "");
   $("#btn-hint").classList.toggle("hidden", settings.hints !== "yes");
   $("#btn-finish").classList.add("hidden"); // knowledge-only
-  setMessage(rules?.title ? `🎯 “${rules.title}” — by ${rules.by || "anonymous"}` : "");
+  setMessage(
+    rules?.title
+      ? `🎯 “${rules.title}” — by ${rules.by || "anonymous"}`
+      : dailyActive
+        ? "🎞 Now Showing — today's connection."
+        : ""
+  );
   updateStats();
   startTimer();
   await showT("game"); // wait for the reveal so the viewport is measurable
@@ -871,6 +881,7 @@ function setMessage(text, kind) {
 // win = every goal connected. Shared trunks are the genius move — one
 // bridge that serves two goals beats two separate chains.
 async function startHybrid(start, goals) {
+  dailyActive = false;
   lastEndpoints = {
     start: structuredClone(start),
     end: null,
@@ -973,6 +984,8 @@ function showHybridWin(paths) {
   const n = game.goals.length;
   $("#win-modal .eyebrow").textContent = "That's a wrap";
   $("#win-stars").classList.add("hidden"); // classic-only (for now)
+  $("#win-daily").classList.add("hidden");
+  $("#btn-share-daily").classList.add("hidden");
   $("#win-modal h1").innerHTML =
     n === 1 ? "<em>Connected.</em>" : "<em>All goals reached.</em>";
   $("#win-score").innerHTML =
@@ -1171,6 +1184,8 @@ function showKnowledgeResults() {
   );
   $("#btn-copy-challenge").classList.remove("hidden"); // hybrid wins hide it
   $("#win-stars").classList.add("hidden"); // stars are a classic-chain thing
+  $("#win-daily").classList.add("hidden");
+  $("#btn-share-daily").classList.add("hidden");
   $("#win-modal .eyebrow").textContent =
     game.target && game.placed >= game.target ? "Goal reached!" : "Time!";
   $("#win-modal h1").innerHTML = `<em>${game.placed} named.</em>`;
@@ -1915,6 +1930,30 @@ function checkWin() {
           ? "clean chain — no obvious links"
           : "the obvious links did the heavy lifting"
     }${oneTake ? " · 🎞 one take" : ""}</span>`;
+
+  // Now Showing: first completion goes on the books; streak shown either way
+  if (dailyActive) {
+    const log = dailyLog();
+    const first = !log[dailyDateStr()];
+    if (first) {
+      log[dailyDateStr()] = {
+        steps,
+        stars,
+        hints: hintsUsed,
+        placed: game.placed,
+      };
+      localStorage.setItem("dailyLog", JSON.stringify(log));
+    }
+    $("#win-daily").textContent =
+      `🎞 Today's connection, made — 🔥 ${dailyStreak(log)}-day streak` +
+      (first ? "" : " (today was already on the books)");
+    $("#win-daily").classList.remove("hidden");
+    $("#btn-share-daily").classList.remove("hidden");
+    initDailyStrip(); // refresh the marquee status behind the modal
+  } else {
+    $("#win-daily").classList.add("hidden");
+    $("#btn-share-daily").classList.add("hidden");
+  }
 
   const par = game.rules?.par;
   $("#win-score").innerHTML =
@@ -2707,6 +2746,8 @@ async function showFinale() {
   );
   $("#btn-copy-challenge").classList.remove("hidden"); // hybrid wins hide it
   $("#win-stars").classList.add("hidden"); // the credits speak for themselves
+  $("#win-daily").classList.add("hidden");
+  $("#btn-share-daily").classList.add("hidden");
   $("#win-modal .eyebrow").textContent = "That's a wrap";
   $("#win-modal h1").innerHTML = "<em>The credits roll.</em>";
   $("#win-score").innerHTML =
@@ -4129,11 +4170,158 @@ document.addEventListener("drop", (e) => {
   if (f && f.type === "image/png") redeemTicket(f);
 });
 
+// ===== Now Showing — the daily connection (IDEAS #4, no backend) =====
+// One date-seeded double bill for everyone: a seeded RNG drives every pick,
+// so every player resolves the same discover pages and rows on the same day.
+// The first resolution is cached per-date in localStorage, so mid-day TMDB
+// vote drift can't change YOUR bill once the marquee has shown it.
+// Results live in localStorage "dailyLog"; the leaderboard is Supabase-era.
+let pendingDaily = false; // set by the strip, consumed by startGame
+let dailyActive = false; // the running classic game IS today's daily
+
+function dailyDateStr(d = new Date()) {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
+function hashSeed(str) {
+  let h = 2166136261; // FNV-1a
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let dailyPromise = null;
+function resolveDaily() {
+  if (dailyPromise) return dailyPromise;
+  dailyPromise = (async () => {
+    const date = dailyDateStr();
+    try {
+      const cached = JSON.parse(localStorage.getItem("dailyPuzzle") || "null");
+      if (cached?.date === date) return cached;
+    } catch {}
+    const rand = mulberry32(hashSeed("now-showing-" + date));
+    // a double bill: both endpoints are titles, from the approachable end
+    // of the catalogue (pages 1-8 by vote count) — same for everyone
+    const pickType = () => (rand() < 0.7 ? "movie" : "tv");
+    const types = [pickType(), pickType()];
+    const pages = [1 + Math.floor(rand() * 8), 1 + Math.floor(rand() * 8)];
+    const rolls = [rand(), rand()];
+    // v1 tradeoff: English originals only — cross-industry bills (a K-drama
+    // to a '70s Hollywood film) are near-unsolvable for most players. The
+    // MAIN game stays unrestricted; themed language days could be a feature.
+    const fetchRows = async (type, page) =>
+      (
+        (
+          await tmdb(`/discover/${type}`, {
+            page,
+            sort_by: "vote_count.desc",
+            include_adult: "false",
+            with_original_language: "en",
+          })
+        ).results || []
+      ).filter((r) => r.poster_path);
+    const rowsA = await fetchRows(types[0], pages[0]);
+    const rowsB = await fetchRows(types[1], pages[1]);
+    if (!rowsA.length || !rowsB.length) return null;
+    const start = makeItem(rowsA[Math.floor(rolls[0] * rowsA.length)], types[0]);
+    // walk forward deterministically past dupes and one-link anticlimaxes
+    // (every player takes the same walk); the last try accepts anything
+    const gi = Math.floor(rolls[1] * rowsB.length);
+    let goal = null;
+    for (let t = 0; t < 6 && !goal; t++) {
+      const cand = makeItem(rowsB[(gi + t) % rowsB.length], types[1]);
+      if (cand.key === start.key) continue;
+      if (t < 5 && (await connects(start, cand))) continue;
+      goal = cand;
+    }
+    if (!goal) return null;
+    const puzzle = { date, s: start, g: goal };
+    localStorage.setItem("dailyPuzzle", JSON.stringify(puzzle));
+    return puzzle;
+  })().catch(() => null);
+  return dailyPromise;
+}
+
+function dailyLog() {
+  try {
+    return JSON.parse(localStorage.getItem("dailyLog") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function dailyStreak(log = dailyLog()) {
+  let streak = 0;
+  const d = new Date();
+  while (log[dailyDateStr(d)]) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+async function initDailyStrip() {
+  const puzzle = await resolveDaily();
+  if (!puzzle) return; // TMDB down — the marquee stays dark
+  $("#daily-bill").innerHTML =
+    `${esc(puzzle.s.name)} <span class="daily-sep">→</span> ${esc(puzzle.g.name)}`;
+  const res = dailyLog()[puzzle.date];
+  $("#daily-status").textContent = res
+    ? `${"★".repeat(res.stars)} in ${res.steps} · 🔥 ${dailyStreak()}`
+    : "play today's connection";
+  $("#daily-strip").classList.remove("hidden");
+}
+
+$("#daily-strip").addEventListener("click", async () => {
+  const puzzle = await resolveDaily();
+  if (!puzzle) return;
+  quest.active = false;
+  pendingDaily = true;
+  startGame(structuredClone(puzzle.s), structuredClone(puzzle.g));
+});
+
+$("#btn-share-daily").addEventListener("click", async (e) => {
+  const res = dailyLog()[dailyDateStr()];
+  const puzzle = await resolveDaily();
+  if (!res || !puzzle) return;
+  const nice = new Date().toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  const text =
+    `🎞 Now Showing — ${nice}\n` +
+    `${puzzle.s.name} → ${puzzle.g.name}\n` +
+    `${"★".repeat(res.stars)}${"☆".repeat(3 - res.stars)} in ${res.steps} link${res.steps === 1 ? "" : "s"}` +
+    `${res.hints ? ` (${res.hints} hint${res.hints === 1 ? "" : "s"})` : " (no hints)"}\n` +
+    location.href.split("#")[0];
+  copyWithFeedback(e.currentTarget, text);
+});
+
 // ---- Boot ----
 if (apiKey) {
   show("home");
   fillPool().catch(() => {}); // warm the pool before the user even hits Play
   initPosterRain();
+  initDailyStrip();
   tryLoadChallenge(); // arrived via a shared link? jump straight in
 } else {
   show("key");

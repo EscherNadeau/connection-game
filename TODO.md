@@ -1,5 +1,14 @@
 # Connection Game — TODO
 
+## 18. Now Showing — the daily connection ✅ DONE (2026-07-01)
+The daily, shipped with zero backend (graduated from IDEAS #4; name per the #14 reservation — "it means *today* on a marquee"). Same puzzle for everyone: a date-seeded RNG (FNV-1a → mulberry32) drives every pick, so all players resolve the same discover pages/rows; the first resolution caches per-date in localStorage (`dailyPuzzle`) so mid-day TMDB vote drift can't change a bill someone already saw.
+- [x] A double bill: both endpoints are titles (seeded 70/30 movie/tv), discover pages 1–8 by vote count. A deterministic forward-walk skips dupes and one-link anticlimaxes (last try accepts anything, so there's always a bill).
+- [x] **English originals only for v1** (decided 2026-07-01 after the first live test dealt *Guardian: The Lonely and Great God* → *Alien*): cross-industry bills are near-unsolvable for most players. The main game stays unrestricted. Themed language days ("Foreign Film Friday") noted as a future feature.
+- [x] Home marquee strip (`#daily-strip`, reserved-height slot — no layout pop): today's bill + play/done-with-streak status.
+- [x] Win integration: first completion recorded to `dailyLog` (steps/stars/hints/placed), 🔥 streak line + spoiler-free share text (endpoints, stars, links, hints — never the path) via `#btn-share-daily`. Replays welcome but only the first completion is on the books.
+- [x] Daily runs the player's own difficulty settings (timer/hints) — hints show in the share text, so the flex is honest.
+- Supabase era: daily leaderboard; consider region-aware or themed-language dailies.
+
 ## 17. Core loop pass — deep-cut scoring + undo ✅ DONE (2026-07-01)
 Graduated from IDEAS.md (#1 efficiency pressure, #2 super-connectors, #3 undo) as ONE system instead of three. Decided: super-connectors stay **legal but unimpressive** (scoring beats bans); exploration stays free (waste never gates stars); groundwork for multiplayer scoring.
 - [x] Items carry `fame` (TMDB popularity for people / vote_count for titles) from every source; `fameTier()` is the single fame vocabulary (shared with the casting-page badges).

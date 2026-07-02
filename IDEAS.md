@@ -23,7 +23,8 @@ the same three super-connectors every game = no.
 > **#1, #2, and #3 graduated to TODO #17 (2026-07-01)** — shipped as one system:
 > fame-tier star rating on classic wins (super-connectors legal but capped at 1★),
 > "one take" flourish, deep-cut placement flares, and last-placement undo.
-> #4 (the local daily) is still open and still the biggest lever.
+> **#4 graduated to TODO #18 the same day** — "Now Showing" shipped: date-seeded
+> daily double bill, streaks, spoiler-free share, zero backend.
 
 ### 1. No efficiency pressure in default play
 In quick Classic only the shortest path counts, dead ends are free, and there's
