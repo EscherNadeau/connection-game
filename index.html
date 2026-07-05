@@ -63,6 +63,7 @@
       </button>
     </div>
     <button id="btn-how" class="btn ghost">how to play</button>
+    <button id="btn-archive" class="btn ghost">🗓 the archive</button>
     <button id="btn-office" class="btn ghost">🎟 the box office</button>
     <button id="btn-opening" class="btn ghost">🌙 opening night</button>
     <button id="btn-change-key" class="btn ghost">change api key</button>
@@ -275,6 +276,41 @@
     <div id="office-shelves"></div>
     <div class="setup-actions cast-actions">
       <button id="btn-office-back" class="btn primary big">← home</button>
+    </div>
+  </div>
+</section>
+
+<!-- THE ARCHIVE — Now Showing history: win streak + colored-border calendar -->
+<section id="screen-archive" class="screen hidden">
+  <div class="archive-wrap">
+    <p class="eyebrow">Now Showing · The Archive</p>
+    <h2 class="setup-title archive-title"><em>Every connection, kept.</em></h2>
+    <p class="archive-sub">Skip a day, the streak waits. <em>Lose</em> a day, it starts over.</p>
+
+    <div class="stat-row">
+      <div class="stat-tile hero"><div class="stat-num" id="arch-streak">0</div><div class="stat-label">🔥 Win streak</div></div>
+      <div class="stat-tile"><div class="stat-num" id="arch-max">0</div><div class="stat-label">Best streak</div></div>
+      <div class="stat-tile"><div class="stat-num" id="arch-pct">—</div><div class="stat-label">Win rate</div></div>
+    </div>
+
+    <div class="run-block">
+      <p class="run-caption">The current run</p>
+      <div class="run" id="arch-run"></div>
+      <p class="run-note" id="arch-run-note"></p>
+    </div>
+
+    <div id="arch-cal" class="arch-cal"></div>
+
+    <div class="legend">
+      <span><i class="swatch gold"></i> no help · 3★</span>
+      <span><i class="swatch silver"></i> no hints</span>
+      <span><i class="swatch bronze"></i> used a hint</span>
+      <span><i class="swatch loss"></i> lost the day</span>
+      <span><i class="swatch skip"></i> skipped — tap to play it</span>
+    </div>
+
+    <div class="setup-actions">
+      <button id="btn-archive-back" class="btn primary big">← home</button>
     </div>
   </div>
 </section>

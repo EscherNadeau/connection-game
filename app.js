@@ -308,7 +308,7 @@ async function takeRandomItem(exclude, type = "any", level = settings.obscurity)
 }
 
 // ===== Screens =====
-const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere", "lobby"];
+const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere", "lobby", "archive"];
 function show(name) {
   for (const s of screens)
     document.getElementById("screen-" + s).classList.toggle("hidden", s !== name);
@@ -755,6 +755,7 @@ let hintsUsed = 0;
 
 $("#btn-start-game").addEventListener("click", () => {
   quest.active = false; // quick play — no premiere, no scenes
+  homeOnExit = false; // quick play exits to setup, not home
   if (playMode === "knowledge") {
     if (!slots.start) return;
     startKnowledge(structuredClone(slots.start));
@@ -1211,6 +1212,9 @@ function timeUp() {
     return;
   }
   recordStub("ran out of time", false);
+  // a daily you played and lost breaks the win streak (quitting before the
+  // clock is a skip and never gets here — see the quit handler)
+  if (dailyActive) recordDaily(false, { placed: game.placed });
   $("#lose-modal .eyebrow").textContent = "Out of time"; // budget fail rewrites these
   $("#lose-modal h1").innerHTML = "<em>Time's up.</em>";
   $("#lose-text").innerHTML =
@@ -1986,21 +1990,12 @@ function checkWin() {
           : "the obvious links did the heavy lifting"
     }${oneTake ? " · 🎞 one take" : ""}</span>`;
 
-  // Now Showing: first completion goes on the books; streak shown either way
+  // Now Showing: first outcome of the day goes on the books and sticks
   if (dailyActive) {
-    const log = dailyLog();
-    const first = !log[dailyDateStr()];
-    if (first) {
-      log[dailyDateStr()] = {
-        steps,
-        stars,
-        hints: hintsUsed,
-        placed: game.placed,
-      };
-      localStorage.setItem("dailyLog", JSON.stringify(log));
-    }
+    const first = recordDaily(true, { steps, stars, hints: hintsUsed, placed: game.placed });
+    const streak = dailyStreak();
     $("#win-daily").textContent =
-      `🎞 Today's connection, made — 🔥 ${dailyStreak(log)}-day streak` +
+      `🎞 Today's connection, made — 🔥 ${streak} win${streak === 1 ? "" : "s"} in a row` +
       (first ? "" : " (today was already on the books)");
     $("#win-daily").classList.remove("hidden");
     $("#btn-share-daily").classList.remove("hidden");
@@ -2071,6 +2066,7 @@ $("#btn-show-results").addEventListener("click", () => {
 });
 
 $("#btn-quit").addEventListener("click", () => {
+  if (homeOnExit) return exitNowShowing(); // daily/archive quit is a skip → home
   boardActive = false;
   stopTimer();
   $("#btn-show-results").classList.add("hidden");
@@ -2095,6 +2091,7 @@ $("#btn-quit").addEventListener("click", () => {
   showT("mode"); // back to setup with the same matchup waiting
 });
 $("#btn-play-again").addEventListener("click", () => {
+  if (homeOnExit) return exitNowShowing(); // a daily is one-and-done → home
   boardActive = false;
   $("#win-modal").classList.add("hidden");
   $("#btn-show-results").classList.add("hidden");
@@ -2116,6 +2113,7 @@ $("#btn-play-again").addEventListener("click", () => {
   rerollSlot("end");
 });
 $("#btn-retry").addEventListener("click", () => {
+  if (homeOnExit) return exitNowShowing(); // the daily is settled → home (practice from the archive)
   $("#lose-modal").classList.add("hidden");
   if (game.mode === "hybrid") {
     // same start, same hidden goals — a true rematch
@@ -2133,6 +2131,7 @@ $("#btn-retry").addEventListener("click", () => {
   );
 });
 $("#btn-lose-new").addEventListener("click", () => {
+  if (homeOnExit) return exitNowShowing();
   boardActive = false;
   $("#lose-modal").classList.add("hidden");
   if (builderTest) {
@@ -2680,6 +2679,7 @@ function showPremiere() {
 
 async function startRound(i) {
   quest.idx = i;
+  homeOnExit = false; // quest scenes exit through the premiere, not home
   const r = quest.rounds[i];
   if (r.mode === "knowledge") {
     if (r.minutes) settings.timerMinutes = r.minutes;
@@ -3845,6 +3845,7 @@ $("#btn-detail-play").addEventListener("click", () => {
   if (!item) return;
   $("#detail-sheet").classList.add("hidden");
   quest.active = false;
+  homeOnExit = false;
   playMode = "classic";
   applySetupMode();
   rerollSeq.start++; // cancel any in-flight reroll for the slot
@@ -5293,6 +5294,11 @@ function phoneFeedRow(html) {
 // Results live in localStorage "dailyLog"; the leaderboard is Supabase-era.
 let pendingDaily = false; // set by the strip, consumed by startGame
 let dailyActive = false; // the running classic game IS today's daily
+// Now Showing / archive games exit to home (or back to the archive), not to
+// the quick-play setup screen; `homeOnExit` gates that, `nowShowingOrigin`
+// picks the destination. Set true only at the daily strip and archive taps.
+let homeOnExit = false;
+let nowShowingOrigin = "home"; // "home" | "archive"
 
 function dailyDateStr(d = new Date()) {
   return (
@@ -5324,17 +5330,21 @@ function mulberry32(seed) {
   };
 }
 
-let dailyPromise = null;
-let dailyPromiseDate = ""; // memo is per-date — a tab left open past midnight re-resolves
-function resolveDaily() {
-  const date = dailyDateStr();
-  if (dailyPromise && dailyPromiseDate === date) return dailyPromise;
-  dailyPromiseDate = date;
-  dailyPromise = (async () => {
-    try {
-      const cached = JSON.parse(localStorage.getItem("dailyPuzzle") || "null");
-      if (cached?.date === date) return cached;
-    } catch {}
+// Any date's puzzle is reproducible (date-seeded), so the archive can serve
+// past days for practice too. Cache per date; today also persists to
+// localStorage so the strip's first paint is instant and immune to mid-day
+// TMDB vote drift.
+const dailyCache = new Map(); // date -> Promise<puzzle|null>
+function resolveDailyFor(date) {
+  if (dailyCache.has(date)) return dailyCache.get(date);
+  const p = (async () => {
+    const today = dailyDateStr();
+    if (date === today) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("dailyPuzzle") || "null");
+        if (cached?.date === date) return cached;
+      } catch {}
+    }
     const rand = mulberry32(hashSeed("now-showing-" + date));
     // a double bill: both endpoints are titles, from the approachable end
     // of the catalogue (pages 1-8 by vote count) — same for everyone
@@ -5372,10 +5382,14 @@ function resolveDaily() {
     }
     if (!goal) return null;
     const puzzle = { date, s: start, g: goal };
-    localStorage.setItem("dailyPuzzle", JSON.stringify(puzzle));
+    if (date === today) localStorage.setItem("dailyPuzzle", JSON.stringify(puzzle));
     return puzzle;
   })().catch(() => null);
-  return dailyPromise;
+  dailyCache.set(date, p);
+  return p;
+}
+function resolveDaily() {
+  return resolveDailyFor(dailyDateStr());
 }
 
 function dailyLog() {
@@ -5386,32 +5400,81 @@ function dailyLog() {
   }
 }
 
-function dailyStreak(log = dailyLog()) {
-  let streak = 0;
-  const d = new Date();
-  while (log[dailyDateStr(d)]) {
-    streak++;
-    d.setDate(d.getDate() - 1);
-  }
-  return streak;
+// A logged day is a WIN unless it explicitly carries ok:false. Legacy entries
+// (written before losses were recorded) have no `ok` and are all wins.
+const dailyWon = (e) => !!e && e.ok !== false;
+
+// played days up to today, chronological
+function dailyPlayed(log = dailyLog()) {
+  const today = dailyDateStr();
+  return Object.keys(log)
+    .filter((d) => d <= today)
+    .sort();
 }
 
+// THE STREAK IS A WIN STREAK (TODO #20, decided 2026-07-05): +1 per win,
+// reset to 0 on a loss, a skipped day does nothing. Current = the trailing run.
+function dailyStreak(log = dailyLog()) {
+  let s = 0;
+  for (const d of dailyPlayed(log)) s = dailyWon(log[d]) ? s + 1 : 0;
+  return s;
+}
+function dailyMaxStreak(log = dailyLog()) {
+  let s = 0,
+    max = 0;
+  for (const d of dailyPlayed(log)) {
+    s = dailyWon(log[d]) ? s + 1 : 0;
+    if (s > max) max = s;
+  }
+  return max;
+}
+function dailyWinPct(log = dailyLog()) {
+  const played = dailyPlayed(log);
+  if (!played.length) return 0;
+  return Math.round(
+    (played.filter((d) => dailyWon(log[d])).length / played.length) * 100
+  );
+}
+
+// the medal tier a played day earned (border color in the archive)
+function dailyTier(e) {
+  if (!dailyWon(e)) return "loss";
+  if (!e.hints && e.stars >= 3) return "gold"; // no help + the connoisseur's route
+  if (!e.hints) return "silver"; // clean, unaided
+  return "bronze"; // won, but took a hint
+}
+
+// First outcome of the day is recorded and STICKS — a later same-day win can't
+// un-break a loss, and a banked win survives a later failed replay.
+function recordDaily(ok, extra = {}) {
+  const log = dailyLog();
+  const date = dailyDateStr();
+  if (log[date]) return false; // already settled today
+  log[date] = { ok, ...extra };
+  localStorage.setItem("dailyLog", JSON.stringify(log));
+  return true;
+}
+
+let stripDate = ""; // the day initDailyStrip last painted, for the wake check
 async function initDailyStrip() {
   const puzzle = await resolveDaily();
   if (!puzzle) return; // TMDB down — the marquee stays dark
+  stripDate = dailyDateStr();
   $("#daily-bill").innerHTML =
     `${esc(puzzle.s.name)} <span class="daily-sep">→</span> ${esc(puzzle.g.name)}`;
   const res = dailyLog()[puzzle.date];
+  const streak = dailyStreak();
   $("#daily-status").textContent = res
-    ? `${"★".repeat(res.stars)} in ${res.steps} · 🔥 ${dailyStreak()}`
+    ? dailyWon(res)
+      ? `${"★".repeat(res.stars)} in ${res.steps}${streak ? ` · 🔥 ${streak}` : ""}`
+      : "missed — the streak resets"
     : "play today's connection";
   $("#daily-strip").classList.remove("hidden");
 }
 
 // a tab waking up on a new day repaints the marquee with the new bill
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && dailyPromiseDate && dailyPromiseDate !== dailyDateStr())
-    initDailyStrip();
+  if (!document.hidden && stripDate && stripDate !== dailyDateStr()) initDailyStrip();
 });
 
 $("#daily-strip").addEventListener("click", async () => {
@@ -5419,6 +5482,171 @@ $("#daily-strip").addEventListener("click", async () => {
   if (!puzzle) return;
   quest.active = false;
   pendingDaily = true;
+  homeOnExit = true; // the daily lives off the home screen — quit returns here
+  nowShowingOrigin = "home";
+  startGame(structuredClone(puzzle.s), structuredClone(puzzle.g));
+});
+
+// ===== The Archive — Now Showing history (TODO #20) =====
+// A pure render of localStorage `dailyLog`: the win streak up top, the current
+// run visualized as a thread that hops skips and dies at losses, and a
+// calendar where every played day wears its medal border. Past days are
+// replayable (deterministic seeding) — today records, past days are practice.
+const ARCH_GLYPH = { gold: "★★★", silver: "★★", bronze: "✎", loss: "✗" };
+const ARCH_DOW = ["S", "M", "T", "W", "T", "F", "S"];
+
+function monthGridHTML(year, month, log) {
+  const today = dailyDateStr();
+  const lead = new Date(year, month, 1).getDay();
+  const days = new Date(year, month + 1, 0).getDate();
+  const name = new Date(year, month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+  let cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="cal-cell blank"></div>`;
+  for (let day = 1; day <= days; day++) {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const isToday = key === today;
+    const future = key > today;
+    const e = log[key];
+    let cls = "cal-cell";
+    let glyph = "";
+    let tip = "";
+    if (future) cls += " future";
+    else if (e) {
+      const t = dailyTier(e);
+      cls += " " + t;
+      glyph = ARCH_GLYPH[t];
+      tip = "tap to replay (practice)";
+    } else {
+      cls += " skip";
+      tip = isToday ? "play today's connection" : "tap to play this day (practice)";
+    }
+    if (isToday) cls += " today";
+    cells += `<button class="${cls}"${
+      future ? " disabled" : ` data-date="${key}" title="${tip}"`
+    }>
+      ${isToday ? '<span class="fire">🔥</span>' : ""}
+      <span class="date">${day}</span>
+      ${glyph ? `<span class="glyph">${glyph}</span>` : ""}
+    </button>`;
+  }
+  return `<div class="cal-month"><div class="cal-name">${esc(name)}</div>
+    <div class="cal-dow">${ARCH_DOW.map((d) => `<span>${d}</span>`).join("")}</div>
+    <div class="cal-grid">${cells}</div></div>`;
+}
+
+function renderArchive() {
+  const log = dailyLog();
+  const played = dailyPlayed(log);
+  const streak = dailyStreak(log);
+  $("#arch-streak").textContent = streak;
+  $("#arch-max").textContent = dailyMaxStreak(log);
+  $("#arch-pct").innerHTML = played.length
+    ? `${dailyWinPct(log)}<span class="pct">%</span>`
+    : "—";
+
+  // the current run: a reset marker at the last loss, then the live win streak
+  // with skipped calendar days shown as hollow hops the gold thread crosses
+  let lastLossIdx = -1;
+  played.forEach((d, i) => {
+    if (!dailyWon(log[d])) lastLossIdx = i;
+  });
+  const live = played.slice(lastLossIdx + 1);
+  let run = "";
+  let note = "";
+  if (!played.length) {
+    run = `<span class="run-empty">No dailies yet — the marquee's waiting.</span>`;
+  } else if (!live.length) {
+    run = `<span class="run-reset">reset</span><div class="run-chip loss">✗</div>`;
+    note = "The streak reset — today's a fresh start.";
+  } else {
+    if (lastLossIdx >= 0)
+      run += `<span class="run-reset">reset</span><div class="run-chip loss">✗</div>`;
+    const today = dailyDateStr();
+    let chips = "";
+    let d = new Date(live[0] + "T00:00:00Z");
+    const end = new Date(today + "T00:00:00Z");
+    for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const key = d.toISOString().slice(0, 10);
+      const isToday = key === today;
+      if (log[key] && dailyWon(log[key]))
+        chips += `<div class="run-chip win${isToday ? " today" : ""}">${isToday ? "🔥" : "✓"}</div>`;
+      else if (!log[key]) chips += `<div class="run-chip skip">·</div>`;
+    }
+    // the live streak gets the gold thread (a dashed underline); it visibly
+    // crosses the hollow skip chips but never the reset/loss before it
+    run += `<span class="run-live">${chips}</span>`;
+    note =
+      streak === 1
+        ? "One win on the board — keep it going."
+        : `${streak} in a row. Miss a day and it holds; lose one and it resets.`;
+  }
+  $("#arch-run").innerHTML = run;
+  $("#arch-run-note").textContent = note;
+
+  // calendars: this month back to the earliest played month (cap 6)
+  const earliest = played[0] || dailyDateStr();
+  const ey = +earliest.slice(0, 4);
+  const em = +earliest.slice(5, 7) - 1;
+  const now = new Date();
+  let y = now.getFullYear();
+  let m = now.getMonth();
+  const months = [];
+  for (let i = 0; i < 6; i++) {
+    months.push(monthGridHTML(y, m, log));
+    if (y === ey && m === em) break;
+    m--;
+    if (m < 0) {
+      m = 11;
+      y--;
+    }
+  }
+  $("#arch-cal").innerHTML = months.join("");
+}
+
+// hands the board/modals back and returns to wherever the daily was launched
+function exitNowShowing() {
+  boardActive = false;
+  stopTimer();
+  $("#win-modal").classList.add("hidden");
+  $("#lose-modal").classList.add("hidden");
+  $("#round-modal").classList.add("hidden");
+  $("#btn-show-results").classList.add("hidden");
+  dailyActive = false;
+  homeOnExit = false;
+  if (nowShowingOrigin === "archive") {
+    renderArchive();
+    showT("archive");
+  } else {
+    showT("home");
+  }
+  initDailyStrip();
+}
+
+$("#btn-archive").addEventListener("click", () => {
+  renderArchive();
+  showT("archive");
+});
+$("#btn-archive-back").addEventListener("click", () => showT("home"));
+
+// tap a day to play it — today records, any past day is practice
+$("#arch-cal").addEventListener("click", async (e) => {
+  const cell = e.target.closest(".cal-cell[data-date]");
+  if (!cell) return;
+  const date = cell.dataset.date;
+  cell.classList.add("loading");
+  const puzzle = await resolveDailyFor(date);
+  cell.classList.remove("loading");
+  if (!puzzle) {
+    alert("Couldn't load that day — TMDB may be unreachable.");
+    return;
+  }
+  quest.active = false;
+  homeOnExit = true;
+  nowShowingOrigin = "archive";
+  pendingDaily = date === dailyDateStr(); // only TODAY goes on the books
   startGame(structuredClone(puzzle.s), structuredClone(puzzle.g));
 });
 

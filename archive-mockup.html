@@ -1,0 +1,305 @@
+<!doctype html>
+<!--
+  MOCKUP ONLY — The Archive (Now Showing history), TODO #20.
+  Reuses the game's fonts + style.css so it's pixel-accurate to the app.
+  Fake data, no backend. Open directly in a browser (file:// works).
+  Toggle light/dark with the ☀/☾ button to check both themes.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Archive — mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* ===== archive-specific (would live in style.css when built) ===== */
+  :root {
+    --m-gold: #cf9c3a;
+    --m-silver: #9c968a;
+    --m-bronze: #b1743f;
+    --m-loss: #c0524a;
+  }
+  body.dark {
+    --m-gold: #ddb05a;
+    --m-silver: #bab3a3;
+    --m-bronze: #cc8a53;
+    --m-loss: #d67268;
+  }
+
+  .archive-screen { justify-content: flex-start; padding-top: 72px; }
+  .archive-wrap { width: 100%; max-width: 760px; text-align: center; }
+  .archive-back {
+    position: fixed; top: 22px; left: 22px; z-index: 5;
+  }
+  .archive-title { margin-bottom: 8px; }
+  .archive-title em { font-size: clamp(2.4rem, 6vw, 3.4rem); }
+  .archive-sub { color: var(--muted); margin-bottom: 34px; }
+  .archive-sub em { color: var(--ink); }
+
+  /* --- stat trio --- */
+  .stat-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 14px; margin-bottom: 34px;
+  }
+  .stat-tile {
+    background: var(--card); background-image: var(--grain);
+    border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px 12px; box-shadow: var(--shadow-tiny);
+  }
+  .stat-tile.hero { border-color: var(--gold); }
+  .stat-num {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 2.6rem; line-height: 1; letter-spacing: -0.02em;
+  }
+  .stat-tile.hero .stat-num { color: var(--gold); }
+  .stat-label {
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted); margin-top: 8px;
+  }
+
+  /* --- the current run: linear win-streak, skips are free, loss resets --- */
+  .run-block { margin-bottom: 40px; }
+  .run-caption {
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+  }
+  .run {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 20px 22px; position: relative;
+  }
+  .run-chip {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 700; position: relative; z-index: 1;
+    background: var(--card); border: 2px solid var(--line);
+  }
+  .run-chip.win { border-color: var(--m-gold); color: var(--m-gold);
+    background: color-mix(in srgb, var(--m-gold) 16%, var(--card)); }
+  .run-chip.skip { border-style: dashed; border-color: var(--edge);
+    color: var(--muted); background: transparent; }
+  .run-chip.loss { border-color: var(--m-loss); color: var(--m-loss);
+    background: color-mix(in srgb, var(--m-loss) 14%, var(--card)); }
+  .run-chip.today {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 30%, transparent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--gold) 8%, transparent); }
+  }
+  /* the gold thread runs beneath the live streak, hops the skips, dies at the loss */
+  .run-thread {
+    position: absolute; left: 64px; right: 20px; bottom: 16px; height: 2px;
+    border-bottom: 2px dashed var(--m-gold); opacity: 0.7; z-index: 0;
+  }
+  .run-note {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    color: var(--muted); font-size: 0.98rem; margin-top: 2px;
+  }
+  .run-reset {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--m-loss);
+    align-self: center; margin-right: 4px;
+  }
+
+  /* --- the calendar --- */
+  .cal-month { margin-bottom: 30px; text-align: left; }
+  .cal-name {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 1.4rem; margin-bottom: 12px; padding-left: 4px;
+  }
+  .cal-dow, .cal-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;
+  }
+  .cal-dow span {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+    text-align: center; padding-bottom: 6px;
+  }
+  .cal-cell {
+    aspect-ratio: 1; border-radius: 12px; border: 2px solid transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 0.82rem; font-weight: 600; position: relative;
+    background: var(--card); box-shadow: var(--shadow-tiny);
+  }
+  .cal-cell .date { color: var(--ink); }
+  .cal-cell .glyph { font-size: 0.62rem; margin-top: 1px; line-height: 1; }
+
+  .cal-cell.blank { background: transparent; box-shadow: none; }
+  .cal-cell.future { background: transparent; border: 1px dashed var(--line);
+    box-shadow: none; }
+  .cal-cell.future .date { color: var(--muted); opacity: 0.5; }
+
+  .cal-cell.skip { background: transparent; border: 2px dotted var(--edge); cursor: pointer; }
+  .cal-cell.skip .date { color: var(--muted); }
+  .cal-cell.skip::after {
+    content: "▷"; position: absolute; font-size: 0.6rem; color: var(--gold);
+    bottom: 4px; opacity: 0; transition: opacity 0.15s;
+  }
+  .cal-cell.skip:hover { border-color: var(--gold); }
+  .cal-cell.skip:hover::after { opacity: 1; }
+  .cal-cell.skip:hover .date { opacity: 0; }
+
+  .cal-cell.gold   { border-color: var(--m-gold);
+    background: color-mix(in srgb, var(--m-gold) 15%, var(--card)); }
+  .cal-cell.silver { border-color: var(--m-silver);
+    background: color-mix(in srgb, var(--m-silver) 15%, var(--card)); }
+  .cal-cell.bronze { border-color: var(--m-bronze);
+    background: color-mix(in srgb, var(--m-bronze) 15%, var(--card)); }
+  .cal-cell.loss   { border-color: var(--m-loss); border-style: solid;
+    background: color-mix(in srgb, var(--m-loss) 10%, var(--card)); }
+  .cal-cell.loss .date { color: var(--m-loss); }
+
+  .cal-cell.today { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent); }
+  .cal-cell .fire { position: absolute; top: -8px; right: -6px; font-size: 0.8rem; }
+
+  /* --- legend --- */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center;
+    margin: 8px auto 40px; max-width: 620px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px;
+    font-size: 0.78rem; color: var(--muted); }
+  .swatch { width: 16px; height: 16px; border-radius: 5px; border: 2px solid; }
+  .swatch.gold   { border-color: var(--m-gold);   background: color-mix(in srgb, var(--m-gold) 15%, var(--card)); }
+  .swatch.silver { border-color: var(--m-silver); background: color-mix(in srgb, var(--m-silver) 15%, var(--card)); }
+  .swatch.bronze { border-color: var(--m-bronze); background: color-mix(in srgb, var(--m-bronze) 15%, var(--card)); }
+  .swatch.loss   { border-color: var(--m-loss);   background: color-mix(in srgb, var(--m-loss) 10%, var(--card)); }
+  .swatch.skip   { border-style: dotted; border-color: var(--edge); background: transparent; }
+
+  .mock-flag {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); opacity: 0.6;
+  }
+</style>
+</head>
+<body class="dark">
+
+<div class="bg">
+  <div class="blob blob-a"></div>
+  <div class="blob blob-b"></div>
+  <div class="blob blob-c"></div>
+</div>
+<div class="noise"></div>
+
+<button id="theme" class="theme-toggle" title="Toggle light / dark">☀</button>
+<button class="btn ghost archive-back">← home</button>
+
+<div class="screen archive-screen">
+  <div class="archive-wrap">
+    <p class="eyebrow">Now Showing · The Archive</p>
+    <h1 class="archive-title"><em>Every connection, kept.</em></h1>
+    <p class="archive-sub">Skip a day, the streak waits. <em>Lose</em> a day, it starts over.</p>
+
+    <div class="stat-row">
+      <div class="stat-tile hero"><div class="stat-num" id="s-cur">6</div><div class="stat-label">🔥 Win streak</div></div>
+      <div class="stat-tile"><div class="stat-num">14</div><div class="stat-label">Best streak</div></div>
+      <div class="stat-tile"><div class="stat-num">88<span style="font-size:1.2rem">%</span></div><div class="stat-label">Win rate</div></div>
+    </div>
+
+    <div class="run-block">
+      <p class="run-caption">The current run</p>
+      <div class="run" id="run"></div>
+      <p class="run-note" id="run-note">Six in a row — one skip, no losses. Miss tomorrow and it still holds.</p>
+    </div>
+
+    <div id="calendar"></div>
+
+    <div class="legend">
+      <span><i class="swatch gold"></i> no help · 3★</span>
+      <span><i class="swatch silver"></i> no hints</span>
+      <span><i class="swatch bronze"></i> used a hint</span>
+      <span><i class="swatch loss"></i> lost the day</span>
+      <span><i class="swatch skip"></i> skipped — tap to play it</span>
+    </div>
+  </div>
+</div>
+
+<div class="mock-flag">mockup · fake data · not wired</div>
+
+<script>
+  // fake outcomes — only PLAYED days are listed; anything absent is a skip.
+  // r: gold | silver | bronze | loss
+  const outcomes = {
+    "2026-06-20": "gold", "2026-06-21": "silver", "2026-06-22": "loss",
+    "2026-06-23": "bronze", "2026-06-24": "gold", /* 25 skip */ "2026-06-26": "silver",
+    "2026-06-27": "gold", "2026-06-28": "loss", "2026-06-29": "silver", "2026-06-30": "gold",
+    "2026-07-01": "gold", "2026-07-02": "silver", /* 03 skip */ "2026-07-04": "bronze",
+    "2026-07-05": "gold",
+  };
+  const TODAY = "2026-07-05";
+  const glyphs = { gold: "★★★", silver: "★★", bronze: "✎", loss: "✗" };
+
+  // --- the current run ribbon: walk back from today, skips ignored, stop at a loss
+  const run = document.getElementById("run");
+  const played = Object.keys(outcomes).sort(); // chronological
+  // find the last loss; the live streak is every win after it
+  let lastLossIdx = -1;
+  played.forEach((d, i) => { if (outcomes[d] === "loss") lastLossIdx = i; });
+  const liveDays = played.slice(lastLossIdx + 1);
+
+  let html = "";
+  if (lastLossIdx >= 0) {
+    html += `<span class="run-reset">reset</span>`;
+    html += `<div class="run-chip loss">✗</div>`;
+  }
+  // rebuild the live stretch WITH its skipped calendar days shown as hollow hops
+  const first = new Date(liveDays[0]);
+  const last = new Date(TODAY);
+  for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    const isToday = key === TODAY;
+    if (outcomes[key]) {
+      html += `<div class="run-chip win${isToday ? " today" : ""}">${isToday ? "🔥" : "✓"}</div>`;
+    } else {
+      html += `<div class="run-chip skip">·</div>`;
+    }
+  }
+  html += `<div class="run-thread"></div>`;
+  run.innerHTML = html;
+
+  // --- the month calendars
+  const DOW = ["S", "M", "T", "W", "T", "F", "S"];
+  function monthGrid(year, month /*0-based*/, name) {
+    const first = new Date(year, month, 1).getDay();
+    const days = new Date(year, month + 1, 0).getDate();
+    let cells = "";
+    for (let i = 0; i < first; i++) cells += `<div class="cal-cell blank"></div>`;
+    for (let day = 1; day <= days; day++) {
+      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const isToday = key === TODAY;
+      const future = key > TODAY;
+      const r = outcomes[key];
+      let cls = "cal-cell";
+      let glyph = "";
+      if (future) cls += " future";
+      else if (r) { cls += " " + r; glyph = glyphs[r]; }
+      else cls += " skip";
+      if (isToday) cls += " today";
+      cells += `<div class="${cls}">
+        ${isToday ? '<span class="fire">🔥</span>' : ""}
+        <span class="date">${day}</span>
+        ${glyph ? `<span class="glyph">${glyph}</span>` : ""}
+      </div>`;
+    }
+    return `<div class="cal-month">
+      <div class="cal-name">${name}</div>
+      <div class="cal-dow">${DOW.map((d) => `<span>${d}</span>`).join("")}</div>
+      <div class="cal-grid">${cells}</div>
+    </div>`;
+  }
+  document.getElementById("calendar").innerHTML =
+    monthGrid(2026, 6, "July 2026") + monthGrid(2026, 5, "June 2026");
+
+  // --- theme toggle (so both looks are checkable)
+  const t = document.getElementById("theme");
+  t.addEventListener("click", () => {
+    const dark = document.body.classList.toggle("dark");
+    t.textContent = dark ? "☀" : "☾";
+  });
+</script>
+</body>
+</html>

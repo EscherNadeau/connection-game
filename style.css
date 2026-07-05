@@ -2465,3 +2465,152 @@ body.dark .wf-fantasy { color: #87a883; }
 }
 .phone-feed-row.bad { color: var(--goal); }
 #phone-round .suggestions { text-align: left; }
+
+/* ===== The Archive — Now Showing history (TODO #20) ===== */
+:root {
+  --m-gold: #cf9c3a;
+  --m-silver: #9c968a;
+  --m-bronze: #b1743f;
+  --m-loss: #c0524a;
+}
+body.dark {
+  --m-gold: #ddb05a;
+  --m-silver: #bab3a3;
+  --m-bronze: #cc8a53;
+  --m-loss: #d67268;
+}
+
+#screen-archive { justify-content: flex-start; padding-top: 64px; }
+.archive-wrap { width: 100%; max-width: 760px; text-align: center; }
+.archive-title { margin-bottom: 8px; }
+.archive-sub { color: var(--muted); margin-bottom: 34px; }
+.archive-sub em { color: var(--ink); }
+
+/* --- stat trio --- */
+.stat-row {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 14px; margin-bottom: 34px;
+}
+.stat-tile {
+  background: var(--card); background-image: var(--grain);
+  border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px 12px; box-shadow: var(--shadow-tiny);
+}
+.stat-tile.hero { border-color: var(--gold); }
+.stat-num {
+  font-family: "Instrument Serif", serif; font-style: italic;
+  font-size: 2.6rem; line-height: 1; letter-spacing: -0.02em;
+}
+.stat-num .pct { font-size: 1.2rem; }
+.stat-tile.hero .stat-num { color: var(--gold); }
+.stat-label {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); margin-top: 8px;
+}
+
+/* --- the current run --- */
+.run-block { margin-bottom: 40px; }
+.run-caption {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+}
+.run {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 20px; max-width: 100%; flex-wrap: wrap; justify-content: center;
+}
+.run-live {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  justify-content: center; padding-bottom: 14px;
+  border-bottom: 2px dashed var(--m-gold);
+}
+.run-chip {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 700;
+  background: var(--card); border: 2px solid var(--line);
+}
+.run-chip.win { border-color: var(--m-gold); color: var(--m-gold);
+  background: color-mix(in srgb, var(--m-gold) 16%, var(--card)); }
+.run-chip.skip { border-style: dashed; border-color: var(--edge);
+  color: var(--muted); background: transparent; }
+.run-chip.loss { border-color: var(--m-loss); color: var(--m-loss);
+  background: color-mix(in srgb, var(--m-loss) 14%, var(--card)); }
+.run-chip.today {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 30%, transparent);
+  animation: run-pulse 2.4s ease-in-out infinite;
+}
+@keyframes run-pulse {
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--gold) 8%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .run-chip.today { animation: none; } }
+.run-reset {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--m-loss); margin-right: 4px;
+}
+.run-note {
+  font-family: "Instrument Serif", serif; font-style: italic;
+  color: var(--muted); font-size: 0.98rem; margin-top: 14px;
+}
+.run-empty {
+  font-family: "Instrument Serif", serif; font-style: italic; color: var(--muted);
+}
+
+/* --- calendars --- */
+.arch-cal { text-align: left; }
+.cal-month { margin-bottom: 30px; }
+.cal-name {
+  font-family: "Instrument Serif", serif; font-style: italic;
+  font-size: 1.4rem; margin-bottom: 12px; padding-left: 4px;
+}
+.cal-dow, .cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;
+}
+.cal-dow span {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  text-align: center; padding-bottom: 6px;
+}
+.cal-cell {
+  aspect-ratio: 1; border-radius: 12px; border: 2px solid transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 0.82rem; font-weight: 600; position: relative;
+  background: var(--card); box-shadow: var(--shadow-tiny);
+  font-family: inherit; color: var(--ink); cursor: default; padding: 0;
+  transition: transform 0.15s, border-color 0.15s;
+}
+button.cal-cell[data-date] { cursor: pointer; }
+button.cal-cell[data-date]:hover { transform: translateY(-2px); border-color: var(--gold); }
+.cal-cell.loading { opacity: 0.5; pointer-events: none; }
+.cal-cell .date { color: var(--ink); }
+.cal-cell .glyph { font-size: 0.6rem; margin-top: 1px; line-height: 1; color: var(--muted); }
+.cal-cell.blank { background: transparent; box-shadow: none; }
+.cal-cell.future { background: transparent; border: 1px dashed var(--line); box-shadow: none; }
+.cal-cell.future .date { color: var(--muted); opacity: 0.5; }
+.cal-cell.skip { background: transparent; border: 2px dotted var(--edge); }
+.cal-cell.skip .date { color: var(--muted); }
+.cal-cell.gold   { border-color: var(--m-gold);
+  background: color-mix(in srgb, var(--m-gold) 15%, var(--card)); }
+.cal-cell.gold .glyph   { color: var(--m-gold); }
+.cal-cell.silver { border-color: var(--m-silver);
+  background: color-mix(in srgb, var(--m-silver) 15%, var(--card)); }
+.cal-cell.bronze { border-color: var(--m-bronze);
+  background: color-mix(in srgb, var(--m-bronze) 15%, var(--card)); }
+.cal-cell.loss   { border-color: var(--m-loss);
+  background: color-mix(in srgb, var(--m-loss) 10%, var(--card)); }
+.cal-cell.loss .date, .cal-cell.loss .glyph { color: var(--m-loss); }
+.cal-cell.today { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent); }
+.cal-cell .fire { position: absolute; top: -8px; right: -6px; font-size: 0.8rem; }
+
+/* --- legend --- */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center;
+  margin: 6px auto 36px; max-width: 620px;
+}
+.legend span { display: inline-flex; align-items: center; gap: 7px;
+  font-size: 0.78rem; color: var(--muted); }
+.legend .swatch { width: 16px; height: 16px; border-radius: 5px; border: 2px solid; }
+.swatch.gold   { border-color: var(--m-gold);   background: color-mix(in srgb, var(--m-gold) 15%, var(--card)); }
+.swatch.silver { border-color: var(--m-silver); background: color-mix(in srgb, var(--m-silver) 15%, var(--card)); }
+.swatch.bronze { border-color: var(--m-bronze); background: color-mix(in srgb, var(--m-bronze) 15%, var(--card)); }
+.swatch.loss   { border-color: var(--m-loss);   background: color-mix(in srgb, var(--m-loss) 10%, var(--card)); }
+.swatch.skip   { border-style: dotted; border-color: var(--edge); background: transparent; }

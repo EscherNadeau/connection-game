@@ -1,5 +1,20 @@
 # Connection Game — TODO
 
+## 20. The Archive — Now Showing history + streak (DESIGN LOCKED 2026-07-05; mockup at `archive-mockup.html`)
+Extends #18 (Now Showing). No backend — pure render of what's already in localStorage (`dailyLog`), plus a losses record we don't keep yet.
+
+- [ ] **The streak is a WIN streak, not a calendar streak (Escher, 2026-07-05).** Win → streak+1; **lose → reset to 0**; **skip a day → nothing** (the streak survives the gap). Stored as a plain running counter, NOT derived by walking the calendar (that's how it works today — that logic gets replaced). No backfill, no makeups, no streak-freeze, no "play a past day to save it" — all explicitly rejected as over-engineering. A skipped day is a non-event.
+- [ ] **Loss vs skip (the only fork, decided forgiving):** a **loss** = you played today's daily and the clock beat you → resets the streak. **Quitting before the clock = a skip** (never recorded) — nobody's punished for closing the tab. This means the daily must start **recording losses** too (today `dailyLog` only writes the first WIN), and a lost date must STICK (a later same-day win can't overwrite it, or "lose resets" isn't real).
+- [ ] **Two numbers do the two jobs (reviewer's synthesis, Escher approved):** the *win streak* is the kind, forgiving flex; the **archive calendar itself is the retention pressure** — skipped days show as empty/grey cells, so missing a day is *visible* (nagging) without ever breaking the streak. The guilt is visual, not mechanical — the humane version of the Wordle chain. Also surface **max streak** + **win %** (Wordle's trio) — free from the same data.
+- [ ] **Colored border per date = how you won it (Escher's idea):** medal tiers by how much help you took —
+  - 🥇 **gold ring** — won with NO hints AND 3★ (clean chain + a deep/crazy link): the purest.
+  - 🥈 **silver ring** — won with no hints, under 3★.
+  - 🥉 **bronze ring** — won, but used hint(s).
+  - **loss** — hairline red + ✗ (played, failed).
+  - **skip** — empty dotted cell (didn't play).
+- [ ] **Playable past days come FREE from the date-seeded design** (FNV-1a→mulberry32 on the date string is deterministic, so any past date reproduces exactly). Tap an empty past cell → play that day's bill. Open question deferred (doesn't gate the archive): whether a past-day win counts toward the win streak or is just for the badge — lean "badge only, streak is forward-only" so the streak stays honest, but not blocking.
+- [ ] Home entry: a ghost button near the daily strip ("The Archive"), same tier as The Box Office.
+
 ## 19. Opening Night — couch multiplayer (DESIGN LOCKED 2026-07-01; waiting room BUILT same day)
 - [x] **Waiting room shipped (2026-07-01):** `screen-lobby` host stage (room code in Bebas, QR slot dashed-out until rooms exist, icebreaker question, color-bordered poster answers popping in, player chips, Roll Film gated on 2+ players & 1+ answer) + the **phone preview** — a real local controller in a phone shell (join with code/name/color validation, icebreaker answered via TMDB search, seated screen). Fake friends join with a 🤖, think, and answer from the warmed pools. Rounds stubbed behind Roll Film.
 - [x] **⚡ Blitz built (2026-07-02):** Roll Film now starts a real round — title card ("Round N · Greta's pick", 3-2-1), 90s clock, the knowledge-mode board hosting a party web (`game.mode = "party"` sidelines every solo path), answers landing color-ringed with namer tags, live score strip, deep-cut flares with the player's name, phone round controller (search + your score + your feed; ✗/repeat rejected politely), fake friends answering from the seed's real credit set (crazy pulls mostly re-rolled so they read human), uniqueness ceremony (ascending crescendo, ×2 pays live), podium with night totals, Next Round (fresh seed) / back to the waiting room; quit mid-round returns to the lobby with the party intact. Gotcha for the file: party podium button is `#btn-party-next` — `#btn-next-round` belongs to the QUEST intermission (a duplicate id silently cross-wired both flows; found in verification).
