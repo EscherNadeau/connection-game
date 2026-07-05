@@ -267,13 +267,24 @@ async function randomItemDirect(type = "any", level = settings.obscurity) {
   let results = data.results || [];
   if (type === "person")
     results = results.filter((r) => r.known_for_department === "Acting");
+  if (!results.length) throw new Error("no items available for " + type);
   return makeItem(results[Math.floor(Math.random() * results.length)], type);
 }
 
-async function takeRandomItem(excludeKey, type = "any", level = settings.obscurity) {
+// `exclude` may be a single key, an array/Set of keys, or falsy — callers that
+// need to avoid several already-chosen endpoints (double feature) pass a set.
+async function takeRandomItem(exclude, type = "any", level = settings.obscurity) {
+  const excludeSet =
+    exclude instanceof Set
+      ? exclude
+      : Array.isArray(exclude)
+        ? new Set(exclude)
+        : exclude
+          ? new Set([exclude])
+          : new Set();
   const pool = pools[level];
   const matches = (it) =>
-    it.key !== excludeKey && (type === "any" || it.type === type);
+    !excludeSet.has(it.key) && (type === "any" || it.type === type);
   if (pool.length === 0) await fillPool(level);
   let idx = pool.findIndex(matches);
   if (idx < 0) {
@@ -473,10 +484,18 @@ function renderSlotDisplays(slot, item) {
 async function rerollSlot(slot) {
   const token = ++rerollSeq[slot];
   if (pools[settings.obscurity].length === 0) renderSlotDisplays(slot, null); // loading pulse only on cold start
-  const item = await takeRandomItem(
-    slots[slot === "start" ? "end" : "start"]?.key,
-    slotFilter[slot]
-  );
+  // never roll a duplicate of another live endpoint — in double feature the
+  // start must dodge every goal, and the classic goal must dodge the start
+  const exclude = new Set();
+  if (slot === "start") {
+    if (slots.end) exclude.add(slots.end.key);
+    if (playMode === "hybrid")
+      for (let i = 0; i < settings.hybridN; i++)
+        if (goalSlots[i]) exclude.add(goalSlots[i].key);
+  } else if (slots.start) {
+    exclude.add(slots.start.key);
+  }
+  const item = await takeRandomItem(exclude, slotFilter[slot]);
   await posterReady(item);
   if (token !== rerollSeq[slot]) return; // a newer reroll/pick superseded this one
   slots[slot] = item;
@@ -650,7 +669,12 @@ async function rerollGoalSlot(i) {
   const token = ++goalRollSeq[i];
   const el = document.querySelector(`.item-display[data-goal-slot="${i}"]`);
   if (!goalSlots[i]) renderItemDisplay(el, null); // loading pulse on empty card
-  const item = await takeRandomItem(slots.start?.key);
+  // dodge the start and every OTHER goal so the deck can't hold two of a kind
+  const exclude = new Set();
+  if (slots.start) exclude.add(slots.start.key);
+  for (let j = 0; j < settings.hybridN; j++)
+    if (j !== i && goalSlots[j]) exclude.add(goalSlots[j].key);
+  const item = await takeRandomItem(exclude);
   await posterReady(item);
   if (token !== goalRollSeq[i]) return;
   goalSlots[i] = item;
@@ -808,7 +832,11 @@ async function startKnowledge(start, bar = 0, rules = null) {
 async function startGame(start, end, rules = null) {
   dailyActive = pendingDaily; // Now Showing arrives through here
   pendingDaily = false;
-  lastEndpoints = { start: structuredClone(start), end: structuredClone(end) };
+  lastEndpoints = {
+    start: structuredClone(start),
+    end: structuredClone(end),
+    daily: dailyActive, // so a retry after a loss still counts as the daily
+  };
   game.rules = rules;
   game.mode = "classic";
   game.nodes = new Map([[start.key, start], [end.key, end]]);
@@ -1010,6 +1038,22 @@ function showHybridWin(paths) {
     )
     .join("");
   $("#btn-copy-challenge").classList.add("hidden"); // no hybrid links yet
+  lastCard = {
+    kind: "chain",
+    headline: n === 1 ? "Connected." : "All goals reached.",
+    subtitle: "Double Feature",
+    stars: null,
+    lines: paths.map((p) => ({
+      items: p.map((k) => game.nodes.get(k)),
+      tiers: p
+        .slice(0, -1)
+        .map((k, i) => edgeTier(game.nodes.get(p[i]), game.nodes.get(p[i + 1]))),
+    })),
+    stat:
+      `${n} goal${n === 1 ? "" : "s"} · ${totalLinks} link${totalLinks === 1 ? "" : "s"} · ${game.placed} placed` +
+      (shared ? ` · ${shared} shared` : ""),
+  };
+  $("#btn-save-card").classList.remove("hidden");
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 600);
 }
 
@@ -1196,14 +1240,25 @@ function showKnowledgeResults() {
     : "";
   $("#win-score").innerHTML =
     `Connections of <b>${esc(start.name)}</b> in ${settings.timerMinutes} min.${vsBar}`;
-  $("#win-path").innerHTML = [...game.nodes.values()]
-    .filter((it) => it.key !== game.startKey)
+  const named = [...game.nodes.values()].filter((it) => it.key !== game.startKey);
+  $("#win-path").innerHTML = named
     .map(
       (it) => `<div class="path-item">
         ${it.img ? `<img src="${it.img}">` : `<div class="no-img">${TYPE_EMOJI[it.type]}</div>`}
         <span>${esc(it.name)}</span></div>`
     )
     .join("");
+  lastCard = {
+    kind: "web",
+    headline: `${game.placed} named.`,
+    subtitle: `Everything ${start.name}`,
+    center: start,
+    named,
+    stat:
+      `${game.placed} connection${game.placed === 1 ? "" : "s"} in ${settings.timerMinutes} min` +
+      (game.bar && game.placed > game.bar ? ` · beat ${game.bar} 🏆` : ""),
+  };
+  $("#btn-save-card").classList.remove("hidden");
   $("#win-modal").classList.remove("hidden");
 }
 
@@ -1983,6 +2038,22 @@ function checkWin() {
       );
     })
     .join("");
+  lastCard = {
+    kind: "chain",
+    headline: "Connected.",
+    subtitle: dailyActive
+      ? `Now Showing · ${cardDateNice()}`
+      : rules?.title
+        ? `“${rules.title}”`
+        : "The Connection Game",
+    stars,
+    lines: [{ items: path.map((k) => game.nodes.get(k)), tiers: linkTiers }],
+    stat:
+      `${steps} link${steps === 1 ? "" : "s"} · ${game.placed} placed` +
+      (hintsUsed ? ` · ${hintsUsed} hint${hintsUsed === 1 ? "" : "s"}` : "") +
+      (oneTake ? " · 🎞 one take" : ""),
+  };
+  $("#btn-save-card").classList.remove("hidden");
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 600);
 }
 
@@ -2013,6 +2084,7 @@ $("#btn-quit").addEventListener("click", () => {
   if (builderTest) {
     builderTest = false; // abandoned test run — no par stamped
     quest.active = false;
+    restoreQuestSettings();
     showT("build");
     return;
   }
@@ -2030,6 +2102,7 @@ $("#btn-play-again").addEventListener("click", () => {
     // back to the builder — the test run just stamped a par
     builderTest = false;
     quest.active = false;
+    restoreQuestSettings();
     showT("build");
     renderBuilder();
     return;
@@ -2052,6 +2125,7 @@ $("#btn-retry").addEventListener("click", () => {
     );
     return;
   }
+  pendingDaily = !!lastEndpoints.daily; // a daily rematch is still the daily
   startGame(
     structuredClone(lastEndpoints.start),
     structuredClone(lastEndpoints.end),
@@ -2064,6 +2138,7 @@ $("#btn-lose-new").addEventListener("click", () => {
   if (builderTest) {
     builderTest = false;
     quest.active = false;
+    restoreQuestSettings();
     showT("build");
     return;
   }
@@ -2511,6 +2586,17 @@ function questMulti() {
   return quest.active && quest.rounds.length > 1;
 }
 
+// Quest rounds tweak timer/hints in memory (never saved) — snapshot the
+// player's own settings at Roll Film and restore them on the way out, so
+// quick play (and a later saveSettings) never inherits a challenge's rules.
+let settingsSnapshot = null;
+function restoreQuestSettings() {
+  if (!settingsSnapshot) return;
+  Object.assign(settings, settingsSnapshot);
+  settingsSnapshot = null;
+  renderSettings();
+}
+
 // Ticket stubs: a local history of every feature you've finished.
 function recordStub(line, ok) {
   if (!quest.active || builderTest) return;
@@ -2622,11 +2708,14 @@ $("#btn-prem-play").addEventListener("click", () => {
   quest.results = [];
   quest.nodes = new Map();
   quest.edges = new Map();
+  // remember the player's own settings before a round tweaks them
+  if (!settingsSnapshot) settingsSnapshot = { ...settings };
   startRound(0);
 });
 
 $("#btn-prem-home").addEventListener("click", () => {
   quest.active = false;
+  restoreQuestSettings(); // hand the player's own settings back to quick play
   if (builderTest) {
     builderTest = false;
     showT("build");
@@ -2751,6 +2840,7 @@ async function showFinale() {
     cleared === quest.results.length
   );
   $("#btn-copy-challenge").classList.remove("hidden"); // hybrid wins hide it
+  $("#btn-save-card").classList.add("hidden"); // finale card would be stale
   $("#win-stars").classList.add("hidden"); // the credits speak for themselves
   $("#win-daily").classList.add("hidden");
   $("#btn-share-daily").classList.add("hidden");
@@ -3369,10 +3459,10 @@ const cast = {
 // vote_count for titles / popularity for people, mapped onto the same
 // obscurity vocabulary the difficulty presets use (thresholds live in fameTier)
 function fameBadge(raw, type) {
-  return fameTier(
-    (type === "person" ? raw.popularity : raw.vote_count) || 0,
-    type
-  );
+  // pass missing fame through as null (no badge) — coercing to 0 used to
+  // mislabel unknown-fame items as "crazy", the most obscure tier
+  const fame = type === "person" ? raw.popularity : raw.vote_count;
+  return fameTier(fame ?? null, type);
 }
 
 function openCasting(ctx) {
@@ -3485,7 +3575,7 @@ function castCardHTML(raw, i) {
     .join(", ");
   const fame = fameBadge(raw, type);
   return `<button class="cast-card" data-i="${i}">
-    <span class="cast-fame">${fame}</span>
+    ${fame ? `<span class="cast-fame">${fame}</span>` : ""}
     <div class="cast-poster">${
       img
         ? `<img loading="lazy" src="${IMG + img}" alt="">`
@@ -3677,10 +3767,11 @@ async function loadDetail(item) {
     conns = (credits.cast || []).slice(0, 30).map((c) => makeItem(c, "person"));
   }
   const year = (info.release_date || info.first_air_date || "").slice(0, 4);
+  const fame = fameBadge(info, item.type);
   const det = {
     meta:
       `${TYPE_LABEL[item.type]}${year ? " · " + year : ""}` +
-      ` · ${fameBadge(info, item.type)}`,
+      (fame ? ` · ${fame}` : ""),
     overview: info.overview || info.biography || "",
     conns,
   };
@@ -4174,6 +4265,259 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
   const f = e.dataTransfer?.files?.[0];
   if (f && f.type === "image/png") redeemTicket(f);
+});
+
+// ===== The lobby card: your win as a shareable image =====
+// Reuses the ticket's warm-paper canvas aesthetic, but draws the chain you
+// actually built — posters, deep-cut badges on the connections, stars — so a
+// win travels as an IMAGE. `lastCard` is captured by each win path.
+let lastCard = null;
+
+function cardDateNice() {
+  return new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" });
+}
+
+// Load a poster for canvas use. crossOrigin so toBlob isn't tainted (TMDB's
+// image CDN sends Access-Control-Allow-Origin: *). Resolves null on failure.
+function loadCardImg(url) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url.replace("/w342/", "/w500/");
+  });
+}
+
+const CARD = {
+  ink: "#221d15",
+  muted: "rgba(34,29,21,0.62)",
+  paper: "#f6f1e6",
+  gold: "#b98a2e",
+  clay: "#c05c3f",
+  sage: "#6f7d54",
+};
+
+function cardPaper(x, W, H) {
+  x.fillStyle = CARD.paper;
+  x.fillRect(0, 0, W, H);
+  for (let i = 0; i < (W * H) / 260; i++) {
+    x.fillStyle = `rgba(27,24,18,${Math.random() * 0.05})`;
+    x.fillRect(Math.random() * W, Math.random() * H, 1.2, 1.2);
+  }
+  x.strokeStyle = CARD.ink;
+  x.lineWidth = 3;
+  x.strokeRect(14, 14, W - 28, H - 28);
+  x.lineWidth = 1;
+  x.strokeRect(24, 24, W - 48, H - 48);
+}
+
+// rounded poster tile with a cover-fit image (or an emoji fallback), name below
+function cardPoster(x, img, type, name, px, py, pw, ph) {
+  const r = 10;
+  x.save();
+  x.beginPath();
+  x.moveTo(px + r, py);
+  x.arcTo(px + pw, py, px + pw, py + ph, r);
+  x.arcTo(px + pw, py + ph, px, py + ph, r);
+  x.arcTo(px, py + ph, px, py, r);
+  x.arcTo(px, py, px + pw, py, r);
+  x.closePath();
+  x.clip();
+  if (img) {
+    // cover-fit
+    const s = Math.max(pw / img.width, ph / img.height);
+    const dw = img.width * s;
+    const dh = img.height * s;
+    x.drawImage(img, px + (pw - dw) / 2, py + (ph - dh) / 2, dw, dh);
+  } else {
+    x.fillStyle = "#e7ddc9";
+    x.fillRect(px, py, pw, ph);
+    x.fillStyle = CARD.muted;
+    x.font = `${Math.round(pw * 0.4)}px serif`;
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillText(TYPE_EMOJI[type] || "🎞️", px + pw / 2, py + ph / 2);
+  }
+  x.restore();
+  x.strokeStyle = "rgba(34,29,21,0.25)";
+  x.lineWidth = 1.5;
+  x.strokeRect(px + 0.75, py + 0.75, pw - 1.5, ph - 1.5);
+  // name label
+  x.fillStyle = CARD.ink;
+  x.font = "600 15px Inter, sans-serif";
+  x.textAlign = "center";
+  x.textBaseline = "top";
+  let label = name;
+  while (x.measureText(label).width > pw && label.length > 4)
+    label = label.slice(0, -2);
+  if (label !== name) label = label.slice(0, -1) + "…";
+  x.fillText(label, px + pw / 2, py + ph + 8);
+}
+
+function cardHeader(x, card, W, LX) {
+  x.textAlign = "left";
+  x.textBaseline = "alphabetic";
+  x.fillStyle = CARD.muted;
+  x.font = "600 16px Inter, sans-serif";
+  x.fillText("THE CONNECTION GAME", LX, 78);
+
+  x.fillStyle = CARD.ink;
+  x.font = 'italic 60px "Instrument Serif", Georgia, serif';
+  x.fillText(card.headline, LX, 150);
+  x.strokeStyle = CARD.gold;
+  x.lineWidth = 3;
+  x.beginPath();
+  x.moveTo(LX, 174);
+  x.lineTo(LX + 120, 174);
+  x.stroke();
+
+  x.fillStyle = CARD.muted;
+  x.font = 'italic 26px "Instrument Serif", Georgia, serif';
+  x.fillText(card.subtitle, LX, 214);
+
+  if (card.stars != null) {
+    x.fillStyle = CARD.gold;
+    x.font = "30px Inter, sans-serif";
+    x.fillText("★".repeat(card.stars), LX, 260);
+    x.fillStyle = "rgba(34,29,21,0.25)";
+    const starW = x.measureText("★".repeat(card.stars)).width;
+    x.fillText("☆".repeat(3 - card.stars), LX + starW, 260);
+  }
+}
+
+function cardFooter(x, card, W, H, LX) {
+  x.textAlign = "left";
+  x.fillStyle = CARD.clay;
+  x.font = "700 20px Inter, sans-serif";
+  x.fillText(card.stat, LX, H - 46);
+  x.fillStyle = CARD.muted;
+  x.font = "600 14px Inter, sans-serif";
+  x.textAlign = "right";
+  x.fillText("eschernadeau.github.io/connection-game", W - LX, H - 46);
+}
+
+async function drawCard(card) {
+  await document.fonts.ready;
+  const W = 1200;
+  const LX = 72;
+  const headerH = card.stars != null ? 300 : 258;
+  const footerH = 80;
+
+  if (card.kind === "web") {
+    // knowledge: center subject big, named connections in a grid below
+    const cp = 210; // center poster width
+    const gw = 108; // grid poster width
+    const gh = gw * 1.5;
+    const cols = Math.min(6, Math.max(1, card.named.length || 1));
+    const gridW = cols * gw + (cols - 1) * 26;
+    const rows = Math.ceil(card.named.length / cols) || 0;
+    const centerH = cp * 1.5 + 34;
+    const gridH = rows ? rows * (gh + 34) : 0;
+    const H = headerH + centerH + gridH + footerH + 20;
+    const cv = document.createElement("canvas");
+    cv.width = W;
+    cv.height = H;
+    const x = cv.getContext("2d");
+    cardPaper(x, W, H);
+    cardHeader(x, card, W, LX);
+    const imgs = await Promise.all(
+      [card.center, ...card.named].map((it) => loadCardImg(it.img))
+    );
+    let y = headerH;
+    cardPoster(x, imgs[0], card.center.type, card.center.name, (W - cp) / 2, y, cp, cp * 1.5);
+    y += centerH;
+    card.named.forEach((it, i) => {
+      const c = i % cols;
+      const rr = Math.floor(i / cols);
+      const gx = (W - gridW) / 2 + c * (gw + 26);
+      const gy = y + rr * (gh + 34);
+      cardPoster(x, imgs[i + 1], it.type, it.name, gx, gy, gw, gh);
+    });
+    cardFooter(x, card, W, H, LX);
+    return cv;
+  }
+
+  // chain: one row per path (hybrid can have several; classic has one)
+  const longest = Math.max(...card.lines.map((l) => l.items.length));
+  const arrowGap = 58;
+  const usable = W - 2 * LX;
+  const pw = Math.max(84, Math.min(150, (usable - (longest - 1) * arrowGap) / longest));
+  const ph = pw * 1.5;
+  const rowH = ph + 34 + 46; // poster + label + arrow-badge breathing room
+  const H = headerH + card.lines.length * rowH + footerH;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const x = cv.getContext("2d");
+  cardPaper(x, W, H);
+  cardHeader(x, card, W, LX);
+
+  // preload every poster once (dedupe by url)
+  const urls = [...new Set(card.lines.flatMap((l) => l.items.map((it) => it.img)).filter(Boolean))];
+  const imgMap = new Map();
+  await Promise.all(urls.map(async (u) => imgMap.set(u, await loadCardImg(u))));
+
+  card.lines.forEach((line, li) => {
+    const n = line.items.length;
+    const rowW = n * pw + (n - 1) * arrowGap;
+    const startX = (W - rowW) / 2;
+    const rowY = headerH + li * rowH;
+    line.items.forEach((it, i) => {
+      const px = startX + i * (pw + arrowGap);
+      cardPoster(x, imgMap.get(it.img), it.type, it.name, px, rowY, pw, ph);
+      if (i < n - 1) {
+        const ax = px + pw + arrowGap / 2;
+        const ay = rowY + ph / 2;
+        const tier = line.tiers[i];
+        const deep = tier === "deep cut" || tier === "crazy";
+        x.fillStyle = deep ? CARD.clay : CARD.muted;
+        x.font = "700 30px Inter, sans-serif";
+        x.textAlign = "center";
+        x.textBaseline = "middle";
+        x.fillText("→", ax, ay);
+        if (deep) {
+          x.fillStyle = CARD.clay;
+          x.font = "700 12px Inter, sans-serif";
+          x.fillText(tier === "crazy" ? "CRAZY PULL" : "DEEP CUT", ax, ay - 30);
+        }
+      }
+    });
+  });
+  cardFooter(x, card, W, H, LX);
+  return cv;
+}
+
+async function saveCard() {
+  if (!lastCard) return;
+  const cv = await drawCard(lastCard);
+  const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download =
+    (lastCard.headline.replace(/[^\w ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() ||
+      "connection") + "-card.png";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+$("#btn-save-card").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "drawing…";
+  try {
+    await saveCard();
+    btn.innerHTML = "✓ saved!";
+  } catch {
+    btn.innerHTML = "couldn't save";
+  }
+  setTimeout(() => {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }, 1600);
 });
 
 // ===== Opening Night — couch multiplayer, screens-first (TODO #19) =====
@@ -4981,10 +5325,12 @@ function mulberry32(seed) {
 }
 
 let dailyPromise = null;
+let dailyPromiseDate = ""; // memo is per-date — a tab left open past midnight re-resolves
 function resolveDaily() {
-  if (dailyPromise) return dailyPromise;
+  const date = dailyDateStr();
+  if (dailyPromise && dailyPromiseDate === date) return dailyPromise;
+  dailyPromiseDate = date;
   dailyPromise = (async () => {
-    const date = dailyDateStr();
     try {
       const cached = JSON.parse(localStorage.getItem("dailyPuzzle") || "null");
       if (cached?.date === date) return cached;
@@ -5061,6 +5407,12 @@ async function initDailyStrip() {
     : "play today's connection";
   $("#daily-strip").classList.remove("hidden");
 }
+
+// a tab waking up on a new day repaints the marquee with the new bill
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && dailyPromiseDate && dailyPromiseDate !== dailyDateStr())
+    initDailyStrip();
+});
 
 $("#daily-strip").addEventListener("click", async () => {
   const puzzle = await resolveDaily();
