@@ -1,5 +1,30 @@
 # Connection Game — TODO
 
+## 23. Accounts + saved data (Supabase) — go-live prep (SHAPING 2026-07-05, no code yet)
+"Live soon" needs data to survive a cleared cache / new device. Deferred to its own focused session (decided 2026-07-05 — small UX polish shipped first).
+- [ ] **Sync scope (Escher, 2026-07-05):** an account holds **daily streak & history** (`dailyLog`), **Your Filmography** (`shelf`), and **ticket stubs** (`stubs`). **Settings are explicitly OUT** — difficulty/hints/timer stay device-local (they're a per-sitting preference, not identity).
+- [ ] Auth: lowest-friction sign-in (magic-link email or Google OAuth — decide at build time). Anonymous/local play must keep working; account is opt-in and merges local → remote on first sign-in.
+- [ ] Local-first: localStorage stays the source of truth offline; Supabase is a sync/backup layer, not a hard dependency (the app already boots with zero backend — keep that).
+- [ ] Pairs with #21's "self-serve curated dailies" (fork c) and #19's rooms — all the same Supabase era.
+
+## 22. Feature-runtime UX polish ✅ DONE (2026-07-05)
+- [x] **Poster peek is a real zoom:** the board-peek modal (`openBoardPeek`) now stacks a large poster (`.peek-panel` column layout, ~320px) over name/overview instead of the small side-by-side thumbnail.
+- [x] **"View the map" at intermissions:** `#round-modal` gets a ghost button that ducks the modal to admire the just-finished scene (gold path still lit), with a floating `#btn-resume-round` Continue to bring the intermission back — same duck/resume pattern as the win modal's view-the-web.
+- [x] **The finale is five separate games, not one web (Escher, 2026-07-05):** `showFinale` now lays each scene out as its **own island** on a grid. Shared items are DUPLICATED per island via namespaced keys (`"<scene>:<key>"`) so clusters never touch; the scene's start/goal are pinned as fixed anchors; islands sit `CELL=780`px apart (> `REPULSE_RANGE`) so inter-node repulsion can't bridge them; a new `finaleView` flag disables centering gravity so they don't clump. Each scene's winning chain glows in its **own color** (`SCENE_COLORS`, `colorScene()` — classic lights the path, knowledge lights the whole island). Per-scene snapshots captured in `endRound` (`quest.scenes[]`: own nodes/edges/path). Replaces the old single-ring merged web.
+
+## 21. Curated / featured dailies (SHAPING 2026-07-05, no code — builds on #20 Archive + #15 Tickets + #10 Studio)
+On chosen dates, override the algorithmic daily with a **hand-authored level** — single-stage or a multi-scene feature — that everyone plays that day. It's still the *shared* daily, so it still counts toward the streak and earns a medal (no honesty problem — unlike letting players author their own private "dailies").
+
+- [ ] **Mechanism:** a `date → blob` override map (v3 Studio blobs, bundled like `STAFF_PICKS`). `resolveDailyFor(date)` checks it FIRST, falls back to the random generator. Multi-stage runs through the existing `quest`/premiere/finale runtime. Almost all the machinery already exists.
+- [ ] **Authoring UX (Escher, 2026-07-05): upload a ticket image → pick a day.** Reuse the Tickets pipeline (#15): drop/redeem a ticket PNG (or pull a Studio feature), decode the embedded blob via `pngReadText`, then choose the date to schedule it on. A "schedule this feature" flow — the creator side of the curated daily.
+- [ ] **The distribution fork (the thing to decide — Escher unsure):** a ticket assigned in-browser only overrides *your* localStorage → that's a **personal puzzle calendar**, not "all users." Three distinct products hide here:
+  - **(a) Personal schedule** — local override map, zero infra. Should NOT count toward the streak/medal (same rule as practice) since it isn't the shared daily.
+  - **(b) Shipped event day** — bundle the `date → blob` into app.js and `git push`. "Deciding a day" = a deploy. Perfect for *planned* event days, no backend. IS the shared daily → counts.
+  - **(c) Self-serve, all-users, any day** — needs Supabase (upload writes a row, clients fetch). The full version of "I upload and pick a day and everyone gets it." Supabase-era.
+  The upload-and-pick-a-day UI is the same front-end for all three; only where the assignment LANDS differs (localStorage / a committed file / a backend row).
+- [ ] **Featured border in the archive:** keep the medal (how you did) and ADD an authored accent on top — 🎬 corner badge / gold-foil double ring / creator's color — so event days stand out at a glance without losing the result. (Distinct from the plain medal tiers in #20.)
+- [ ] **OPEN — multi-stage "won the day":** the daily record is currently a single classic win/loss (`ok` + steps/stars/hints). A multi-scene curated day has per-scene results, not one star rating — so it needs a day-result shape (cleared N/M scenes? all-clean = gold?) and a "did you win the day" rule (clear everything? reach the finale?). Single-stage curated days slot into the existing record untouched; **do those first**, decide multi-stage scoring later.
+
 ## 20. The Archive — Now Showing history + streak (DESIGN LOCKED 2026-07-05; mockup at `archive-mockup.html`)
 Extends #18 (Now Showing). No backend — pure render of what's already in localStorage (`dailyLog`), plus a losses record we don't keep yet.
 

@@ -1015,9 +1015,12 @@ input:focus { border-color: rgba(27,24,18,0.35); box-shadow: 0 6px 24px -6px rgb
 }
 #btn-detail-play { align-self: flex-start; margin-top: auto; }
 
-/* board peek — the detail look with a bigger poster and no credits */
-.peek-panel { max-width: 520px; }
-.peek-panel .detail-poster { width: 190px; }
+/* board peek — a proper zoom: the poster fills the card, credits omitted */
+.peek-panel { max-width: 380px; text-align: center; }
+.peek-panel .detail-head { flex-direction: column; align-items: center; gap: 16px; }
+.peek-panel .detail-poster { width: min(320px, 66vw); }
+.peek-panel .detail-info { align-items: center; }
+.peek-panel .detail-overview { text-align: left; }
 
 /* ===== Now Showing — the daily strip on home ===== */
 .daily-slot { min-height: 58px; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
@@ -1741,6 +1744,12 @@ body.dark .ep-goal .endpoint-frame:hover {
   stroke-width: 3.5;
   filter: drop-shadow(0 0 6px rgba(207, 156, 58, 0.6));
 }
+/* finale islands — each scene's chain glows in its own --scene-color (set
+   inline per node/edge). stroke color is set inline; width/glow here. */
+.edge.scene-lit {
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--scene-color, var(--gold)) 55%, transparent));
+}
 
 .gnode {
   position: absolute;
@@ -1813,6 +1822,10 @@ body.dark .ep-goal .endpoint-frame:hover {
 }
 .gnode.on-path .token {
   box-shadow: 0 0 0 2px var(--gold), 0 0 30px rgba(207, 156, 58, 0.6);
+}
+.gnode.scene-lit .token {
+  box-shadow: 0 0 0 2px var(--scene-color),
+    0 0 30px color-mix(in srgb, var(--scene-color) 55%, transparent);
 }
 
 /* double-feature goal chips in the header — tap to peek at the marquee */

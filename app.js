@@ -802,6 +802,7 @@ async function startKnowledge(start, bar = 0, rules = null) {
   game.goalKeys = null;
   hintsUsed = 0;
 
+  finaleView = false;
   sim.clear();
   edgeEls.length = 0;
   nodesLayer.innerHTML = "";
@@ -855,6 +856,7 @@ async function startGame(start, end, rules = null) {
   hintsUsed = 0;
 
   // reset the board
+  finaleView = false;
   sim.clear();
   edgeEls.length = 0;
   nodesLayer.innerHTML = "";
@@ -1416,6 +1418,12 @@ const sim = new Map(); // key -> {x, y, vx, vy, el, fixed, dragging}
 const edgeEls = [];    // {a, b, el(svg line)}
 const view = { x: 0, y: 0, scale: 1 };
 let boardActive = false;
+// The finale lays every scene out as a separate island; global centering
+// gravity would suck them back into one clump, so it's disabled while true.
+let finaleView = false;
+
+// per-scene highlight colors for the finale (readable on paper + dark)
+const SCENE_COLORS = ["#d9534f", "#e08e2b", "#3f9d7f", "#5b8def", "#9b6cc6"];
 
 // physics tuning — heavy damping so new arrivals settle fast
 const REPULSION = 90000; // node-node push (local — fades to zero at REPULSE_RANGE)
@@ -1697,7 +1705,7 @@ function physicsTick() {
   // weak centering gravity — big webs compact instead of sprawling, so the
   // auto-fit camera doesn't have to pull back so far. Only bites beyond
   // GRAV_FREE of the centroid; the compact core never feels it.
-  if (bodies.length > 2) {
+  if (bodies.length > 2 && !finaleView) {
     let cx = 0;
     let cy = 0;
     for (const s of bodies) { cx += s.x; cy += s.y; }
@@ -2065,11 +2073,24 @@ $("#btn-show-results").addEventListener("click", () => {
   $("#win-modal").classList.remove("hidden");
 });
 
+// intermission "view the map": duck the round modal to admire the finished
+// scene, then a floating Continue brings the intermission back (same
+// duck/resume pattern as view-the-web, but for the round modal).
+$("#btn-view-map").addEventListener("click", () => {
+  $("#round-modal").classList.add("hidden");
+  $("#btn-resume-round").classList.remove("hidden");
+});
+$("#btn-resume-round").addEventListener("click", () => {
+  $("#btn-resume-round").classList.add("hidden");
+  $("#round-modal").classList.remove("hidden");
+});
+
 $("#btn-quit").addEventListener("click", () => {
   if (homeOnExit) return exitNowShowing(); // daily/archive quit is a skip → home
   boardActive = false;
   stopTimer();
   $("#btn-show-results").classList.add("hidden");
+  $("#btn-resume-round").classList.add("hidden");
   $("#round-modal").classList.add("hidden");
   if (game.mode === "party") {
     // the night isn't over — back to the waiting room, everyone stays seated
@@ -2708,6 +2729,7 @@ $("#btn-prem-play").addEventListener("click", () => {
   quest.results = [];
   quest.nodes = new Map();
   quest.edges = new Map();
+  quest.scenes = [];
   // remember the player's own settings before a round tweaks them
   if (!settingsSnapshot) settingsSnapshot = { ...settings };
   startRound(0);
@@ -2735,13 +2757,25 @@ function endRound(success) {
     for (const n of set) quest.edges.get(k).add(n);
   }
   const r = quest.rounds[quest.idx];
+  const path = r.mode !== "knowledge" && success ? shortestPath() : null;
   const score =
     r.mode === "knowledge"
       ? game.placed
       : success
-        ? shortestPath().length - 1
+        ? path.length - 1
         : 0;
   quest.results.push({ mode: r.mode, score, success });
+  // per-scene snapshot for the finale: each scene becomes its own island, so
+  // it keeps its OWN nodes/edges (shared items are duplicated across islands).
+  quest.scenes.push({
+    mode: r.mode,
+    nodes: new Map(game.nodes),
+    edges: new Map([...game.edges].map(([k, s]) => [k, new Set(s)])),
+    start: r.start,
+    goal: r.goal || null,
+    path, // ordered keys of the winning chain, or null (loss / knowledge)
+    success,
+  });
   const last = quest.idx >= quest.rounds.length - 1;
   const par = quest.par[quest.idx];
   $("#round-eyebrow").textContent = `Scene ${quest.idx + 1} of ${quest.rounds.length}`;
@@ -2761,12 +2795,70 @@ function endRound(success) {
 
 $("#btn-next-round").addEventListener("click", () => {
   $("#round-modal").classList.add("hidden");
+  $("#btn-resume-round").classList.add("hidden");
   if (quest.idx < quest.rounds.length - 1) startRound(quest.idx + 1);
   else showFinale();
 });
 
-// The finale: every scene's nodes and edges on one board, plus the
-// credits (per-scene results) in the win-modal shell.
+// Light scene i's winning chain in its own color on the finale board. A
+// knowledge round (or an unsolved scene) has no chain, so the whole island
+// lights up instead — the color still says "this cluster is that scene."
+function colorScene(i, color) {
+  const sc = quest.scenes[i];
+  const ns = (k) => i + ":" + k;
+  const prefix = i + ":";
+  let litNodes, litEdge;
+  if (sc.path) {
+    litNodes = new Set(sc.path.map(ns));
+    const pairs = new Set();
+    for (let j = 0; j < sc.path.length - 1; j++) {
+      pairs.add(ns(sc.path[j]) + "|" + ns(sc.path[j + 1]));
+      pairs.add(ns(sc.path[j + 1]) + "|" + ns(sc.path[j]));
+    }
+    litEdge = (a, b) => pairs.has(a + "|" + b);
+  } else {
+    litNodes = new Set([...sc.nodes.keys()].map(ns));
+    litEdge = () => true;
+  }
+  for (const key of litNodes) {
+    const s = sim.get(key);
+    if (!s) continue;
+    s.el.classList.add("scene-lit");
+    s.el.style.setProperty("--scene-color", color);
+  }
+  for (const e of edgeEls) {
+    if (!e.a.startsWith(prefix) || !litEdge(e.a, e.b)) continue;
+    e.el.classList.add("scene-lit");
+    e.el.style.stroke = color;
+    e.el.style.setProperty("--scene-color", color);
+  }
+}
+
+// Frame the whole finale grid: fit the bounding box of every island into
+// the viewport (a static one-shot, since the islands don't drift).
+function fitFinaleView() {
+  if (!sim.size) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of sim.values()) {
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.y < minY) minY = s.y;
+    if (s.y > maxY) maxY = s.y;
+  }
+  const pad = 220;
+  const rect = viewport.getBoundingClientRect();
+  view.scale = Math.min(
+    1,
+    rect.width / (maxX - minX + pad * 2),
+    rect.height / (maxY - minY + pad * 2)
+  );
+  view.x = rect.width / 2 - ((minX + maxX) / 2) * view.scale;
+  view.y = rect.height / 2 - ((minY + maxY) / 2) * view.scale;
+  applyView();
+}
+
+// The finale: every scene as its own island on one board, each chain in its
+// own color, plus the credits (per-scene results) in the win-modal shell.
 async function showFinale() {
   game.mode = "classic";
   game.won = true; // locks placements; view-the-web works as usual
@@ -2774,8 +2866,9 @@ async function showFinale() {
   game.rules = null;
   game.startKey = null;
   game.endKey = null;
-  game.nodes = new Map(quest.nodes);
-  game.edges = new Map([...quest.edges].map(([k, s]) => [k, new Set(s)]));
+  game.nodes = new Map(); // rebuilt below with namespaced (per-island) keys
+  game.edges = new Map();
+  finaleView = true; // islands stay put — no centering gravity to clump them
   sim.clear();
   edgeEls.length = 0;
   nodesLayer.innerHTML = "";
@@ -2788,42 +2881,56 @@ async function showFinale() {
   $("#btn-hint").classList.add("hidden");
   $("#btn-finish").classList.add("hidden");
   $("#btn-undo").classList.add("hidden");
-  setMessage("Every scene, one web.");
-  $("#stat-placed").textContent = "Placed: " + game.nodes.size;
+  setMessage("Every scene — separate games, one marquee.");
   await showT("game");
 
-  // scene subjects pinned in a wide ring; everything else settles via physics
-  const anchors = new Set();
-  for (const r of quest.rounds) {
-    anchors.add(r.start.key);
-    if (r.goal) anchors.add(r.goal.key);
-  }
-  const keys = [...game.nodes.keys()];
-  const R = 160 + 36 * Math.sqrt(keys.length);
-  const anchorList = [...anchors].filter((k) => game.nodes.has(k));
-  anchorList.forEach((k, i) => {
-    const ang = (i / anchorList.length) * Math.PI * 2 - Math.PI / 2;
-    addBoardNode(game.nodes.get(k), Math.cos(ang) * R, Math.sin(ang) * R, true);
-  });
-  for (const k of keys) {
-    if (anchors.has(k)) continue;
-    const ang = Math.random() * Math.PI * 2;
-    const rr = Math.random() * R * 0.8;
-    addBoardNode(game.nodes.get(k), Math.cos(ang) * rr, Math.sin(ang) * rr);
-  }
-  const drawn = new Set();
-  for (const [k, set] of game.edges)
-    for (const n of set) {
-      const id = k < n ? k + "|" + n : n + "|" + k;
-      if (drawn.has(id) || !game.nodes.has(n)) continue;
-      drawn.add(id);
-      addEdgeLine(k, n);
+  // Each scene becomes its own island on a grid, spaced far enough apart that
+  // the (capped, local) inter-node repulsion never bridges two islands. Shared
+  // items are DUPLICATED per island via namespaced keys ("<scene>:<key>"), so
+  // the clusters are genuinely disconnected — distinct games on one board. The
+  // scene's start/goal are pinned as fixed anchors, holding the island in place.
+  const scenes = quest.scenes;
+  const n = scenes.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rowsUsed = Math.ceil(n / cols);
+  const CELL = 780; // > REPULSE_RANGE(380) + island span → islands never touch
+  scenes.forEach((sc, i) => {
+    const cx = ((i % cols) - (cols - 1) / 2) * CELL;
+    const cy = (Math.floor(i / cols) - (rowsUsed - 1) / 2) * CELL;
+    const ns = (k) => i + ":" + k;
+    for (const [k, it] of sc.nodes) {
+      const nsIt = { ...it, key: ns(k) };
+      game.nodes.set(ns(k), nsIt);
+      let x, y, fixed = false;
+      if (k === sc.start.key) {
+        x = sc.goal ? cx - 150 : cx; // knowledge center sits dead middle
+        y = cy;
+        fixed = true;
+      } else if (sc.goal && k === sc.goal.key) {
+        x = cx + 150;
+        y = cy;
+        fixed = true;
+      } else {
+        const ang = Math.random() * Math.PI * 2;
+        const rr = 50 + Math.random() * 130;
+        x = cx + Math.cos(ang) * rr;
+        y = cy + Math.sin(ang) * rr;
+      }
+      addBoardNode(nsIt, x, y, fixed);
     }
-  const rect = viewport.getBoundingClientRect();
-  view.scale = Math.min(1, rect.width / (R * 2 + 420));
-  view.x = rect.width / 2;
-  view.y = rect.height / 2 - 30;
-  applyView();
+    const drawn = new Set();
+    for (const [k, set] of sc.edges)
+      for (const nb of set) {
+        if (!sc.nodes.has(nb)) continue;
+        const id = k < nb ? k + "|" + nb : nb + "|" + k;
+        if (drawn.has(id)) continue;
+        drawn.add(id);
+        addEdgeLine(ns(k), ns(nb));
+      }
+    colorScene(i, SCENE_COLORS[i % SCENE_COLORS.length]);
+  });
+  $("#stat-placed").textContent = "Placed: " + game.nodes.size;
+  fitFinaleView();
   boardActive = true;
 
   // roll the credits
@@ -3410,6 +3517,7 @@ $("#btn-build-test").addEventListener("click", () => {
   quest.results = [];
   quest.nodes = new Map();
   quest.edges = new Map();
+  quest.scenes = [];
   quest.rounds = builderScenes().map((s) => ({
     mode: s.mode,
     start: structuredClone(s.start),
@@ -3894,6 +4002,19 @@ $("#peek-modal").addEventListener("click", (e) => {
 // released features, ticket stubs of what you've played); a community
 // shelf plugs in here when the backend exists.
 const STAFF_PICKS = [
+  {
+    v: 3,
+    ti: "The Last Laugh",
+    tg: "Right in the Funny Bone",
+    by: "knee slap studios",
+    sc: [
+      { m: "c", s: "person-2157", g: "person-10730" }, // Robin Williams → Rowan Atkinson
+      { m: "c", s: "person-55536", g: "person-19292" }, // Melissa McCarthy → Adam Sandler
+      { m: "c", s: "person-131133", g: "person-109708" }, // Trevor Noah → Bill Burr
+      { m: "c", s: "person-81200", g: "person-58225" }, // Conan O'Brien → Zach Galifianakis
+      { m: "c", s: "person-86626", g: "person-212" }, // Aziz Ansari → David Cross
+    ],
+  },
   {
     v: 3,
     ti: "Opening Night",
