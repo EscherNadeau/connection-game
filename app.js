@@ -3974,8 +3974,10 @@ $("#detail-sheet").addEventListener("click", (e) => {
 // Reuses loadDetail's cache but renders NO credits — mid-game those are
 // the answers. Poster + name show instantly; meta/overview fill in.
 let peekSeq = 0;
+let peekItem = null; // the item shown in the peek modal, for the tier-2 zoom
 async function openBoardPeek(item) {
   const token = ++peekSeq;
+  peekItem = item;
   $("#peek-name").textContent = item.name;
   $("#peek-meta").textContent = TYPE_LABEL[item.type];
   $("#peek-overview").textContent = "";
@@ -3995,6 +3997,17 @@ async function openBoardPeek(item) {
 
 $("#peek-modal").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) $("#peek-modal").classList.add("hidden");
+});
+
+// tier 2: tap the peek poster to blow it up full-screen (original res);
+// tap anywhere on the blown-up poster to drop back to the peek card.
+$("#peek-poster").addEventListener("click", () => {
+  if (!peekItem?.img) return; // emoji fallback — nothing to enlarge
+  $("#poster-zoom-img").src = peekItem.img.replace(/\/w\d+\//, "/original/");
+  $("#poster-zoom").classList.remove("hidden");
+});
+$("#poster-zoom").addEventListener("click", () => {
+  $("#poster-zoom").classList.add("hidden");
 });
 
 // ===== The Box Office: browse features and pick a ticket =====

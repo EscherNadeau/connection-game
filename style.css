@@ -1018,9 +1018,35 @@ input:focus { border-color: rgba(27,24,18,0.35); box-shadow: 0 6px 24px -6px rgb
 /* board peek — a proper zoom: the poster fills the card, credits omitted */
 .peek-panel { max-width: 380px; text-align: center; }
 .peek-panel .detail-head { flex-direction: column; align-items: center; gap: 16px; }
-.peek-panel .detail-poster { width: min(320px, 66vw); }
+.peek-panel .detail-poster { width: min(320px, 66vw); cursor: zoom-in; }
 .peek-panel .detail-info { align-items: center; }
 .peek-panel .detail-overview { text-align: left; }
+
+/* poster zoom (tier 2) — the peek poster blown up to fill the screen */
+.poster-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* above the peek modal (z 100) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(12, 10, 7, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: zoom-out;
+  animation: pzfade 0.18s ease;
+}
+.poster-zoom.hidden { display: none; }
+.poster-zoom img {
+  max-width: min(94vw, 640px);
+  max-height: 92vh;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 80px -14px rgba(0, 0, 0, 0.75);
+}
+@keyframes pzfade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .poster-zoom { animation: none; } }
 
 /* ===== Now Showing — the daily strip on home ===== */
 .daily-slot { min-height: 58px; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
