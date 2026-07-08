@@ -1,0 +1,105 @@
+<!-- The Connection Game — Supabase "Magic Link" email template (TODO #23).
+     Paste the <body> contents into Auth → Email Templates → Magic Link.
+     Email-safe by construction: tables + inline styles only, no webfonts
+     (Georgia italic plays the Instrument Serif role), explicit colors on
+     every element so dark-mode inversion can't wreck the paper. -->
+<body style="margin:0;padding:0;background-color:#14110d;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#14110d;padding:0;margin:0;">
+    <tr>
+      <td align="center" style="padding:44px 16px;">
+
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;">
+
+          <!-- marquee -->
+          <tr>
+            <td align="center" style="padding-bottom:14px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:4px;color:#9a927f;text-transform:uppercase;">
+                Movies &nbsp;·&nbsp; Shows &nbsp;·&nbsp; People
+              </div>
+            </td>
+          </tr>
+
+          <!-- the ticket -->
+          <tr>
+            <td style="background-color:#f4f1ea;border-radius:22px;border:1px solid #e2dccb;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                <tr>
+                  <td align="center" style="padding:38px 36px 6px;">
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:4px;color:#8d8779;text-transform:uppercase;">
+                      The Connection Game &nbsp;·&nbsp; Admit One
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="padding:10px 36px 6px;">
+                    <div style="font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:38px;line-height:1.15;color:#1b1812;">
+                      Your ticket <span style="color:#cf9c3a;">in.</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="padding:6px 44px 26px;">
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#8d8779;">
+                      Tonight's code, good for one sign-in.<br>Tear along the dotted line.
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- the stub: perforation + code -->
+                <tr>
+                  <td style="padding:0 30px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                           style="border-top:2px dashed #cdc5b0;border-bottom:2px dashed #cdc5b0;">
+                      <tr>
+                        <td align="center" style="padding:26px 10px;">
+                          <div style="font-family:'Courier New',Courier,monospace;font-size:44px;font-weight:bold;letter-spacing:14px;color:#1b1812;">{{ .Token }}</div>
+                          <div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:3px;color:#b1a98f;text-transform:uppercase;padding-top:10px;">
+                            ★ &nbsp;one showing only&nbsp; ★
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- or the door held open -->
+                <tr>
+                  <td align="center" style="padding:28px 36px 8px;">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:inline-block;background-color:#1b1812;color:#f4f1ea;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:999px;">
+                      or walk straight in &nbsp;→
+                    </a>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="padding:16px 44px 36px;">
+                    <div style="font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:13px;line-height:1.6;color:#8d8779;">
+                      Every connection, kept — your streak, your favorite routes,<br>every deep cut you've ever found.
+                    </div>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- fine print -->
+          <tr>
+            <td align="center" style="padding:22px 30px 0;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:#6f6a5c;">
+                This code burns out in an hour.<br>
+                Didn't ask for it? Ignore this — the reel stays yours.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
