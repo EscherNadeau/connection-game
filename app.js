@@ -3593,21 +3593,13 @@ function openCasting(ctx) {
         : `Casting your ${ctx.slot === "start" ? "Start" : "Goal"}`
       : ctx.mode === "studio"
         ? "Casting for your feature"
-        : ctx.mode === "fav"
-          ? "A favorite connection — the first corner"
-          : "The Back Lot";
+        : "The Back Lot";
   $("#cast-title").innerHTML =
     ctx.mode === "research"
       ? `Follow the <em>threads</em>.`
-      : ctx.mode === "fav"
-        ? `Frame a <em>route</em>.`
-        : `Cast <em>anything</em>.`;
+      : `Cast <em>anything</em>.`;
   $("#btn-cast-back").innerHTML =
-    ctx.mode === "slot" || ctx.mode === "fav"
-      ? "← back"
-      : ctx.mode === "studio"
-        ? "✓ done"
-        : "← home";
+    ctx.mode === "slot" ? "← back" : ctx.mode === "studio" ? "✓ done" : "← home";
   $("#screen-cast").classList.toggle(
     "k-mode",
     ctx.mode === "studio" && builder.mode === "knowledge"
@@ -3634,19 +3626,6 @@ function renderCastTargets() {
 // the running tally of what's been cast so far (studio sessions only)
 function renderCastSession(flash) {
   const el = $("#cast-session");
-  if (cast.ctx?.mode === "fav") {
-    el.innerHTML =
-      flash ||
-      (cast.ctx.first
-        ? `First corner: <b>${esc(cast.ctx.first.name)}</b> — now cast the other end`
-        : "");
-    el.classList.toggle("flash", !!flash);
-    if (flash) {
-      clearTimeout(renderCastSession.t);
-      renderCastSession.t = setTimeout(() => renderCastSession(), 1400);
-    }
-    return;
-  }
   if (cast.ctx?.mode !== "studio") {
     el.textContent = "";
     return;
@@ -3772,24 +3751,6 @@ $("#cast-grid").addEventListener("click", (e) => {
     openCastDetail(item);
     return;
   }
-  if (ctx.mode === "fav") {
-    if (!ctx.first) {
-      ctx.first = item;
-      $("#cast-eyebrow").textContent = "…and the second corner";
-      renderCastSession(`✓ <b>${esc(item.name)}</b> — now cast the other end`);
-      return;
-    }
-    if (item.key === ctx.first.key) {
-      renderCastSession("that's the same corner — pick its partner");
-      return;
-    }
-    const favs = favList();
-    favs.push({ a: ctx.first, b: item });
-    saveFavs(favs);
-    renderProfile();
-    showT("profile");
-    return;
-  }
   if (ctx.mode === "slot") {
     if (ctx.goal != null) {
       goalRollSeq[ctx.goal]++; // cancel any in-flight roll
@@ -3879,11 +3840,6 @@ $("#btn-cast-back").addEventListener("click", () => {
   if (cast.ctx?.mode === "studio") {
     showT("scene");
     renderSceneEditor(); // repaint picks/chips the session may have changed
-    return;
-  }
-  if (cast.ctx?.mode === "fav") {
-    renderProfile(); // an abandoned pick saves nothing
-    showT("profile");
     return;
   }
   showT(cast.ctx?.mode === "research" ? "home" : "mode");
@@ -5946,127 +5902,23 @@ function tallyPath(path) {
   saveLedger();
 }
 
-// ===== Your Profile — stats as identity (TODO #24) =====
-// A pure render of the ledger + dailyLog. The page IS the argument for
-// accounts: anonymous play gets a "local reel"; signing in makes it follow you.
-
-function favList() {
-  try {
-    return JSON.parse(localStorage.getItem("favorites") || "[]");
-  } catch {
-    return [];
-  }
-}
-function saveFavs(favs) {
-  localStorage.setItem("favorites", JSON.stringify(favs.slice(0, 4)));
-  queueSync();
-}
-
-// one end of a favorite: titles wear their poster, people are circles —
-// the board's visual language, framed
-const connEndHTML = (it) =>
-  `<div class="conn-end${it.type === "person" ? " person" : ""}">
-    ${it.img ? `<img src="${it.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[it.type]}</div>`}
-    <span class="cap">${esc(it.name)}</span></div>`;
-
-function renderFavGrid() {
-  const favs = favList();
-  let html = favs
-    .map(
-      (f, i) => `<div class="conn-card">
-        <button class="conn-remove" data-i="${i}" title="take it down">✕</button>
-        <div class="conn-row">${connEndHTML(f.a)}<div class="conn-thread"></div>${connEndHTML(f.b)}</div>
-        <div class="conn-caption"><b>${esc(f.a.name)}</b> → <b>${esc(f.b.name)}</b></div>
-      </div>`
-    )
-    .join("");
-  for (let i = favs.length; i < 4; i++)
-    html += `<button class="conn-card add">
-      <div><div class="plus">＋</div>Pick a connection<small>search any two — a route you love</small></div>
-    </button>`;
-  $("#fav-grid").innerHTML = html;
-}
-
-$("#fav-grid").addEventListener("click", (e) => {
-  const rm = e.target.closest(".conn-remove");
-  if (rm) {
-    const favs = favList();
-    favs.splice(+rm.dataset.i, 1);
-    saveFavs(favs);
-    renderFavGrid();
-    return;
-  }
-  if (e.target.closest(".conn-card.add")) openCasting({ mode: "fav", first: null });
-});
+// ===== Your Profile — the account holder (TODO #24, trimmed 2026-07-08) =====
+// Under the huddle north star the profile is deliberately small: sign-in plus
+// the three numbers that are pure identity. Anything analytical (win rate,
+// distribution, breadth…) belongs to the Archive; the ledger keeps capturing
+// silently either way — those stats' real home is the party stage, someday.
 
 function renderProfile() {
   const log = dailyLog();
-  const played = dailyPlayed(log);
   loadLedger();
 
   $("#prof-streak").textContent = dailyStreak(log);
-  $("#prof-max").textContent = dailyMaxStreak(log);
-  $("#prof-pct").innerHTML = played.length
-    ? `${dailyWinPct(log)}<span class="pct">%</span>`
-    : "—";
   $("#prof-deep").textContent = ledger.deep.size;
-
-  renderFavGrid();
-
-  // how you play: the medal distribution, dailyTier over every played day
-  const counts = { gold: 0, silver: 0, bronze: 0, loss: 0 };
-  for (const d of played) counts[dailyTier(log[d])]++;
-  const wins = counts.gold + counts.silver + counts.bronze;
-  $("#prof-dist-hint").textContent = played.length
-    ? `${wins} of ${played.length} dail${played.length === 1 ? "y" : "ies"} won`
-    : "";
-  const DIST_LABEL = {
-    gold: "gold — clean & hint-free",
-    silver: "silver — no hints",
-    bronze: "bronze — a little help",
-    loss: "lost",
-  };
-  $("#prof-dist").innerHTML = played.length
-    ? `<div class="dist">${["gold", "silver", "bronze", "loss"]
-        .filter((t) => counts[t])
-        .map((t) => `<div class="seg ${t}" style="flex:${counts[t]}" title="${DIST_LABEL[t]}">${counts[t]}</div>`)
-        .join("")}</div>
-      <div class="dist-legend">${["gold", "silver", "bronze", "loss"]
-        .filter((t) => counts[t])
-        .map((t) => `<span><b>${counts[t]}</b> ${DIST_LABEL[t]}</span>`)
-        .join("")}</div>`
-    : `<p class="dist-empty">No dailies on the books yet — the marquee's waiting.</p>`;
-
-  // signature bridge: the person your winning paths route through most
-  const top = Object.values(ledger.bridges).sort((x, y) => y.n - x.n)[0];
-  $("#prof-bridge").innerHTML =
-    `<p class="eyebrow">Your signature bridge</p>` +
-    (top
-      ? `<div class="bridge-row">
-          <div class="bridge-face">${top.img ? `<img src="${top.img}" alt="">` : "🧑"}</div>
-          <div><div class="bridge-big">You thread through <em>${esc(top.name)}</em></div>
-          <div class="bridge-sub">on ${top.n} winning path${top.n === 1 ? "" : "s"} — more than anyone else</div></div>
-        </div>`
-      : `<p class="id-empty">No winning paths yet — your go-to person will show up here.</p>`);
+  $("#prof-crazy").textContent = ledger.crazy.size;
 
   // the avatar is your signature bridge — who you are is who you route through
+  const top = Object.values(ledger.bridges).sort((x, y) => y.n - x.n)[0];
   $("#prof-avatar").innerHTML = top?.img ? `<img src="${top.img}" alt="">` : "🎞";
-
-  $("#prof-breadth").innerHTML = `<p class="eyebrow">The corners you've reached</p>
-    <div class="breadth-row">
-      <div><div class="num">${ledger.titles.size}</div><div class="lbl">titles</div></div>
-      <div><div class="num">${ledger.people.size}</div><div class="lbl">people</div></div>
-      <div><div class="num crazy">${ledger.crazy.size}</div><div class="lbl">crazy pulls 🤯</div></div>
-    </div>`;
-
-  const r = ledger.rarest;
-  $("#prof-rarest").innerHTML =
-    `<p class="eyebrow">Your rarest link</p>` +
-    (r
-      ? `<div class="rare-row"><b>${esc(r.p.name)}</b><span class="was">was in</span><b>${esc(r.t.name)}</b>
-        <span class="rare-tag${r.tier === "deep cut" ? " deep" : ""}">${r.tier === "crazy" ? "crazy pull" : "deep cut"}</span>
-        <span class="was">— the most obscure connection you've ever made</span></div>`
-      : `<p class="id-empty">The single most obscure connection you ever make gets framed here.</p>`);
 
   renderAccount();
 }
@@ -6213,7 +6065,6 @@ function localState() {
     daily_log: lsJSON("dailyLog", "{}"),
     shelf: lsJSON("shelf", "[]"),
     stubs: lsJSON("stubs", "[]"),
-    favorites: lsJSON("favorites", "[]"),
     ledger: lsJSON(LEDGER_KEY, "{}"),
   };
 }
@@ -6252,11 +6103,6 @@ function mergeState(local, remote) {
       30
     ),
     stubs: dedupe([...local.stubs, ...(remote.stubs || [])], (s) => s.when, 30),
-    favorites: dedupe(
-      [...local.favorites, ...(remote.favorites || [])],
-      (f) => f.a?.key + "|" + f.b?.key,
-      4
-    ),
     ledger: {
       deep: uni(ll.deep, rl.deep),
       crazy: uni(ll.crazy, rl.crazy),
@@ -6285,7 +6131,6 @@ async function syncOnSignIn() {
   localStorage.setItem("dailyLog", JSON.stringify(merged.daily_log));
   localStorage.setItem("shelf", JSON.stringify(merged.shelf));
   localStorage.setItem("stubs", JSON.stringify(merged.stubs));
-  localStorage.setItem("favorites", JSON.stringify(merged.favorites));
   localStorage.setItem(LEDGER_KEY, JSON.stringify(merged.ledger));
   ledger = null; // reload from the merged books on next touch
   await pushState(merged);

@@ -1,6 +1,23 @@
 # Connection Game — TODO
 
-## 24. The Profile page — stats as identity ✅ BUILT 2026-07-08 (shaped 2026-07-05, mock at `profile-mockup.html`)
+## North star (Escher, 2026-07-08)
+**A web game that perfectly captures people huddled around one screen — laptop or TV — working together (or against each other, later), shouting names, finding paths, with challenges and custom rounds. Super beautiful, functional, maximum fun, minimum friction.**
+
+Two huddle tiers, and the zero-friction one must never be forced through the ceremony of the other:
+- **Tier 0 — one keyboard, many voices:** the classic game played socially IS the product for this couch. No lobby, no phones, no join flow. What serves it: presentation (board readable at couch distance, flares big enough to celebrate across the room, instant next-round), never systems.
+- **Tier 1 — phones as controllers (Opening Night):** only where simultaneity is the fun (Blitz's everyone-types-at-once). Round types that can work phone-free should keep a no-phones path (The Pitch especially — bidding out loud IS the game; the screen just keeps score).
+
+Consequences: solo is the between-nights habit, not the center. The profile is an account holder, not a destination (trimmed same day — see #24). Deep solo stats belong in the Archive if anywhere. The ledger's stats' real long-term home is the party stage ("Escher's 100th crazy pull 🤯"), not a dashboard.
+
+## 24. The Profile page — TRIMMED TO AN ACCOUNT HOLDER (2026-07-08, same day it was built)
+Built in full from the mock, then cut back hard the same evening under the north star. Escher's review call: the profile was "too much" — a wall of stats (and four zeros + seven empty panels on day one). Decisions:
+- **Four Favorite Connections: CUT entirely** (built and removed the same day — a Letterboxd instinct serving an audience this game isn't for). The casting page's `fav` mode went with it. If it ever returns, it returns to a social surface, not a solo page.
+- **Profile = sign-in + three identity numbers** (🔥 streak, ✨ deep cuts, 🤯 crazy pulls) + the bridge-photo avatar. Nothing analytical.
+- **Everything analytical (win rate, best streak, medal distribution, breadth, bridge card, rarest link) belongs to the Archive** — the future "super detailed archive page" conversation. Profile and Archive must never duplicate numbers: profile = who you are, Archive = how you've done.
+- **The Ledger capture stays untouched** — invisible, cheap, and its stats' real home is the party stage someday.
+- Gotcha found during the trim: the favorites cards had reused the Back Lot's `.conn-card` class name and were silently restyling its credit cards (appended CSS wins) — removed with the feature. Name-check new classes against existing ones.
+
+### (original build notes, kept for the record — shaped 2026-07-05, mock at `profile-mockup.html`)
 The reframe that reshapes #23: accounts aren't "back up my localStorage," they're a **player profile** — "what kind of connector am I." Grounded in the game's soul ("the wow lives in the credit, not the celebrity"; the Archive tagline "Every connection, kept"). This page IS the argument for accounts. Mock built in the real warm-paper system; published concept: sample data, react to shape.
 
 **Built 2026-07-08:** `screen-profile` (`renderProfile`) + **the Ledger** (localStorage `ledger`, the lifetime capture layer) — decisions made at build:

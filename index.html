@@ -316,9 +316,10 @@
   </div>
 </section>
 
-<!-- YOUR PROFILE — stats as identity (TODO #24). A pure render of the ledger
-     + dailyLog. Anonymous play gets a local reel; signing in (TODO #23,
-     Supabase email OTP) makes the same profile follow you. -->
+<!-- YOUR PROFILE — the account holder (TODO #24, trimmed 2026-07-08 under the
+     huddle north star: profile = sign-in + a few identity numbers; anything
+     analytical belongs to the Archive). The ledger still captures everything
+     silently — its stats' real home is the party stage, someday. -->
 <section id="screen-profile" class="screen hidden">
   <div class="profile-wrap">
     <p class="eyebrow">Your Profile</p>
@@ -333,37 +334,8 @@
 
     <div class="stat-row prof-hero">
       <div class="stat-tile"><div class="stat-num" id="prof-streak">0</div><div class="stat-label">🔥 Win streak</div></div>
-      <div class="stat-tile"><div class="stat-num" id="prof-max">0</div><div class="stat-label">Best streak</div></div>
-      <div class="stat-tile"><div class="stat-num" id="prof-pct">—</div><div class="stat-label">Daily win rate</div></div>
       <div class="stat-tile hero"><div class="stat-num" id="prof-deep">0</div><div class="stat-label">✨ Deep cuts found</div></div>
-    </div>
-
-    <div class="prof-section">
-      <div class="prof-section-head">
-        <h3>Four favorite <em>connections</em></h3>
-        <span class="prof-hint">your signature routes — the ones you'd frame</span>
-      </div>
-      <div id="fav-grid" class="fav-grid"></div>
-    </div>
-
-    <div class="prof-section">
-      <div class="prof-section-head">
-        <h3>How you <em>play</em></h3>
-        <span class="prof-hint" id="prof-dist-hint"></span>
-      </div>
-      <div id="prof-dist"></div>
-    </div>
-
-    <div class="prof-section">
-      <div class="prof-section-head">
-        <h3>You, as a <em>connector</em></h3>
-        <span class="prof-hint">the wow lives in the credit, not the celebrity</span>
-      </div>
-      <div class="prof-id-grid">
-        <div class="id-card" id="prof-bridge"></div>
-        <div class="id-card" id="prof-breadth"></div>
-        <div class="id-card wide" id="prof-rarest"></div>
-      </div>
+      <div class="stat-tile"><div class="stat-num" id="prof-crazy">0</div><div class="stat-label">🤯 Crazy pulls</div></div>
     </div>
 
     <div class="prof-section" id="prof-account">
@@ -373,7 +345,7 @@
           <h3>Keep your <em>profile</em></h3>
           <span class="prof-hint">every connection, kept — on any device</span>
         </div>
-        <p class="acct-pitch">Right now this reel lives in one browser. Sign in with your email and it follows you — streak, favorites, filmography, ticket stubs.</p>
+        <p class="acct-pitch">Right now this reel lives in one browser. Sign in with your email and it follows you — streak, history, filmography, ticket stubs.</p>
         <div class="acct-row">
           <input id="acct-email" type="email" placeholder="you@example.com" autocomplete="email">
           <button id="btn-acct-send" class="btn primary">send me a code</button>
