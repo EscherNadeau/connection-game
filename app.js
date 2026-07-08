@@ -6154,7 +6154,7 @@ async function sendCode(email) {
   }
   acctEmail = email;
   acctMsg("#acct-msg", "");
-  $("#acct-code-hint").textContent = `a 6-digit code is on its way to ${email}`;
+  $("#acct-code-hint").textContent = `a sign-in code is on its way to ${email}`;
   acctMsg("#acct-code-msg", "");
   renderAccount();
   $("#acct-otp").focus();
