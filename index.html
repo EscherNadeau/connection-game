@@ -63,6 +63,7 @@
       </button>
     </div>
     <button id="btn-how" class="btn ghost">how to play</button>
+    <button id="btn-profile" class="btn ghost">🎞 your profile</button>
     <button id="btn-archive" class="btn ghost">📅 the archive</button>
     <button id="btn-office" class="btn ghost">🎟 the box office</button>
     <button id="btn-opening" class="btn ghost">🌙 opening night</button>
@@ -311,6 +312,103 @@
 
     <div class="setup-actions">
       <button id="btn-archive-back" class="btn primary big">← home</button>
+    </div>
+  </div>
+</section>
+
+<!-- YOUR PROFILE — stats as identity (TODO #24). A pure render of the ledger
+     + dailyLog. Anonymous play gets a local reel; signing in (TODO #23,
+     Supabase email OTP) makes the same profile follow you. -->
+<section id="screen-profile" class="screen hidden">
+  <div class="profile-wrap">
+    <p class="eyebrow">Your Profile</p>
+
+    <div class="prof-head">
+      <div class="prof-avatar" id="prof-avatar">🎞</div>
+      <div class="prof-id">
+        <h2 class="prof-handle" id="prof-handle"><em>local reel</em></h2>
+        <p class="prof-sub" id="prof-sub">this device only — sign in below to keep it</p>
+      </div>
+    </div>
+
+    <div class="stat-row prof-hero">
+      <div class="stat-tile"><div class="stat-num" id="prof-streak">0</div><div class="stat-label">🔥 Win streak</div></div>
+      <div class="stat-tile"><div class="stat-num" id="prof-max">0</div><div class="stat-label">Best streak</div></div>
+      <div class="stat-tile"><div class="stat-num" id="prof-pct">—</div><div class="stat-label">Daily win rate</div></div>
+      <div class="stat-tile hero"><div class="stat-num" id="prof-deep">0</div><div class="stat-label">✨ Deep cuts found</div></div>
+    </div>
+
+    <div class="prof-section">
+      <div class="prof-section-head">
+        <h3>Four favorite <em>connections</em></h3>
+        <span class="prof-hint">your signature routes — the ones you'd frame</span>
+      </div>
+      <div id="fav-grid" class="fav-grid"></div>
+    </div>
+
+    <div class="prof-section">
+      <div class="prof-section-head">
+        <h3>How you <em>play</em></h3>
+        <span class="prof-hint" id="prof-dist-hint"></span>
+      </div>
+      <div id="prof-dist"></div>
+    </div>
+
+    <div class="prof-section">
+      <div class="prof-section-head">
+        <h3>You, as a <em>connector</em></h3>
+        <span class="prof-hint">the wow lives in the credit, not the celebrity</span>
+      </div>
+      <div class="prof-id-grid">
+        <div class="id-card" id="prof-bridge"></div>
+        <div class="id-card" id="prof-breadth"></div>
+        <div class="id-card wide" id="prof-rarest"></div>
+      </div>
+    </div>
+
+    <div class="prof-section" id="prof-account">
+      <!-- signed out: the pitch + email -->
+      <div id="acct-out">
+        <div class="prof-section-head">
+          <h3>Keep your <em>profile</em></h3>
+          <span class="prof-hint">every connection, kept — on any device</span>
+        </div>
+        <p class="acct-pitch">Right now this reel lives in one browser. Sign in with your email and it follows you — streak, favorites, filmography, ticket stubs.</p>
+        <div class="acct-row">
+          <input id="acct-email" type="email" placeholder="you@example.com" autocomplete="email">
+          <button id="btn-acct-send" class="btn primary">send me a code</button>
+        </div>
+        <p id="acct-msg" class="acct-msg"></p>
+      </div>
+      <!-- code sent: verify -->
+      <div id="acct-code" class="hidden">
+        <div class="prof-section-head">
+          <h3>Check your <em>inbox</em></h3>
+          <span class="prof-hint" id="acct-code-hint"></span>
+        </div>
+        <div class="acct-row">
+          <input id="acct-otp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" maxlength="8">
+          <button id="btn-acct-verify" class="btn primary">sign in</button>
+          <button id="btn-acct-resend" class="btn ghost">resend</button>
+        </div>
+        <p id="acct-code-msg" class="acct-msg"></p>
+      </div>
+      <!-- signed in -->
+      <div id="acct-in" class="hidden">
+        <div class="prof-section-head">
+          <h3>Signed <em>in</em></h3>
+          <span class="prof-hint" id="acct-sync-status"></span>
+        </div>
+        <div class="acct-row">
+          <span id="acct-who" class="acct-who"></span>
+          <button id="btn-acct-out" class="btn ghost">sign out</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-actions">
+      <button id="btn-profile-back" class="btn primary big">← home</button>
+      <button id="btn-profile-archive" class="btn ghost">📅 the archive</button>
     </div>
   </div>
 </section>
@@ -778,6 +876,9 @@
   </div>
 </div>
 
+<!-- supabase-js (accounts, TODO #23) — loaded best-effort; the app never
+     depends on it: if the CDN is unreachable the profile stays local-only. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

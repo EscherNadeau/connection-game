@@ -1,7 +1,13 @@
 # Connection Game — TODO
 
-## 24. The Profile page — stats as identity (SHAPING 2026-07-05, mock at `profile-mockup.html`)
+## 24. The Profile page — stats as identity ✅ BUILT 2026-07-08 (shaped 2026-07-05, mock at `profile-mockup.html`)
 The reframe that reshapes #23: accounts aren't "back up my localStorage," they're a **player profile** — "what kind of connector am I." Grounded in the game's soul ("the wow lives in the credit, not the celebrity"; the Archive tagline "Every connection, kept"). This page IS the argument for accounts. Mock built in the real warm-paper system; published concept: sample data, react to shape.
+
+**Built 2026-07-08:** `screen-profile` (`renderProfile`) + **the Ledger** (localStorage `ledger`, the lifetime capture layer) — decisions made at build:
+- **Deep cuts / crazy pulls = DISTINCT links found** (a Set of link ids), not raw flare counts — replays and undo-cycling never double-count, and "found" honestly means *discovered*. Captured in `tryPlace` at the flare site.
+- **Bridges** = interior people on winning paths (`tallyPath` in classic `checkWin` + once per path in `hybridCheckWin`). **Your avatar IS your signature bridge** — their photo in the gold ring.
+- **Rarest link** = tier first, ties broken by the obscure end's fame as a fraction of its type's "famous" bar (`obscurity()` — the cross-type comparison; thresholds mirror `fameTier`, keep in lockstep).
+- **Solo modes only:** Opening Night never writes the ledger — the couch's collective finds aren't your record, and fake friends would pollute the books. Test screenings DO count (you really did route it).
 
 **Stat tiers (designed from the game, not generic):**
 - **Tier 1 — hero (identity + retention):** daily win streak + the Archive calendar (#20, built); medal/star distribution bar; **deep cuts & crazy pulls found (lifetime)** — the signature stat, the number a film buff screenshots.
@@ -10,16 +16,20 @@ The reframe that reshapes #23: accounts aren't "back up my localStorage," they'r
 - **Tier 4 — needs backend (design schema for it now):** The Charts (daily leaderboard, longest streaks); creator stats (plays of your Studio features, how often players beat your par); Opening Night (nights won, unique finds).
 - **Deliberate anti-stat: do NOT lead with speed** — already decided anti-cozy (#19 "speed is NOT rewarded"). Timers are pressure, not a flex.
 
-- [ ] **Four Favorite Connections (Escher, 2026-07-05) — the centerpiece.** The connection-game's native answer to Letterboxd's four-favorite-films row: four *routes* you love (X → Y), two posters joined by the gold thread + link-count chip, reusing the board's visual language (person = circle, title = poster). Picked via the existing TMDB search. **OPEN:** any two titles/people, or only connections you've actually solved (earned vs. free)? — decide before building.
-- [ ] **What's free vs. new (build order):** streak / calendar / distribution are already derivable from `dailyLog` — do first. Deep cuts / crazy pulls / breadth / signature bridge / rarest link need ONE small capture: a running tally the game increments where it ALREADY fires the deep-cut/crazy-pull flares (+ a per-person route counter, a seen-keys set). Four Favorite Connections is the only purely-new UI.
-- [ ] Home entry: a Profile button / the avatar as the switcher. Anonymous play still shows a local profile; signing in makes it follow you (ties to #23).
+- [x] **Four Favorite Connections — decided FREE PICK (Escher, 2026-07-08), built same day.** Search any two — a route you love (matches the mock's copy; nobody had a recorded solve history to "earn" from anyway). Rides the casting page: `cast.ctx {mode:"fav"}`, first corner → second corner → framed on the profile; ✕ on hover takes one down; localStorage `favorites`, cap 4. **v1 has no link-count chip** — computing a real route between free picks is a search problem, not a render; revisit if the cards feel naked (natural upgrade: stamp the count when you *play* a favorite as a matchup — the "earned badge later" fork).
+- [x] **What's free vs. new** — shipped as predicted: streak/distribution straight off `dailyLog` (+ `dailyTier` reuse), the Ledger was the one small capture, favorites the only new UI.
+- [x] Home entry: `🎞 your profile` ghost button; The Archive is one hop from the profile footer.
+- [ ] Tier 3 stats (totals by mode, hint-free win rate, avg links) — need per-game records nobody keeps yet; design with Tier 4's schema.
+- [ ] Tier 4 (The Charts, creator stats, Opening Night) — Supabase-era, unchanged.
 
-## 23. Accounts + saved data (Supabase) — go-live prep (SHAPING 2026-07-05, no code yet)
-"Live soon" needs data to survive a cleared cache / new device. Deferred to its own focused session (decided 2026-07-05 — small UX polish shipped first).
-- [ ] **Sync scope (Escher, 2026-07-05):** an account holds **daily streak & history** (`dailyLog`), **Your Filmography** (`shelf`), **ticket stubs** (`stubs`), and — added with #24 — the **profile tallies** (lifetime deep cuts / crazy pulls, breadth seen-keys, signature-bridge counts) + **Four Favorite Connections**. **Settings are explicitly OUT** — difficulty/hints/timer stay device-local (they're a per-sitting preference, not identity).
-- [ ] Auth: lowest-friction sign-in (magic-link email or Google OAuth — decide at build time). Anonymous/local play must keep working; account is opt-in and merges local → remote on first sign-in.
-- [ ] Local-first: localStorage stays the source of truth offline; Supabase is a sync/backup layer, not a hard dependency (the app already boots with zero backend — keep that).
-- [ ] Pairs with #21's "self-serve curated dailies" (fork c) and #19's rooms — all the same Supabase era.
+## 23. Accounts + saved data (Supabase) — BUILT 2026-07-08, awaiting project credentials
+"Live soon" needs data to survive a cleared cache / new device. Code shipped with #24; goes live the moment `SUPABASE_URL`/`SUPABASE_KEY` (top of the Accounts section in app.js) are pasted from Escher's dashboard.
+- [x] **Auth = email OTP (decided 2026-07-08):** `signInWithOtp` → 6-digit `verifyOtp`, all inside the profile's account block (send → code → signed in). Zero external config; Google OAuth can be added later without UI rework. First sign-in creates the account.
+- [x] **Sync scope (Escher, 2026-07-05):** `dailyLog`, `shelf`, `stubs`, the `ledger` tallies + `favorites`. **Settings explicitly OUT** — a per-sitting preference, not identity. One `profiles` row per user, one jsonb column per key.
+- [x] **Local-first, enforced in the shape of the code:** localStorage is the only thing anything reads; Supabase is write-through backup (`queueSync` debounce piggybacked on every local save) + merge-on-sign-in (`mergeState`). supabase-js rides a CDN `<script>` — if it never loads or keys are blank, the account block politely says so and everything else is untouched.
+- [x] **Merge rules (2026-07-08):** dailyLog per-date with local winning conflicts; shelf/stubs/favorites union deduped local-first keeping the caps (30/30/4); ledger sets union; **bridge counts take the MAX, never the sum** (both devices grew from the same synced base — summing double-counts); rarest keeps the rarer. Signing out loses nothing — the local reel keeps everything.
+- [ ] **Go-live checklist (Escher, in the dashboard):** create project → paste URL + anon key → run the profiles-table SQL (in `supabase-setup.sql`) → Auth → Email Templates → Magic Link: add `{{ .Token }}` so the mail carries the 6-digit code → Auth → URL Configuration: Site URL = `https://eschernadeau.github.io/connection-game/`.
+- [ ] Pairs with #21's "self-serve curated dailies" (fork c) and #19's rooms — same Supabase era. The Charts reads the `profiles` rows this ships.
 
 ## 22. Feature-runtime UX polish ✅ DONE (2026-07-05)
 - [x] **Poster peek is a real zoom:** the board-peek modal (`openBoardPeek`) now stacks a large poster (`.peek-panel` column layout, ~320px) over name/overview instead of the small side-by-side thumbnail.

@@ -308,7 +308,7 @@ async function takeRandomItem(exclude, type = "any", level = settings.obscurity)
 }
 
 // ===== Screens =====
-const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere", "lobby", "archive"];
+const screens = ["key", "home", "how", "build", "scene", "cast", "office", "mode", "game", "premiere", "lobby", "archive", "profile"];
 function show(name) {
   for (const s of screens)
     document.getElementById("screen-" + s).classList.toggle("hidden", s !== name);
@@ -1000,6 +1000,7 @@ function hybridCheckWin() {
   game.won = true;
   stopTimer();
   highlightPaths(paths);
+  for (const p of paths) tallyPath(p); // a node serving two goals bridges twice — earned
   showHybridWin(paths);
 }
 
@@ -1860,6 +1861,7 @@ async function tryPlace(item) {
     const names = linked.map((k) => game.nodes.get(k).name).join(", ");
     // the north star, in the moment: a surprising LINK gets its flare right now
     const linkTiers = linked.map((k) => edgeTier(item, game.nodes.get(k)));
+    for (const k of linked) tallyLink(item, game.nodes.get(k)); // the ledger keeps every find
     const flare = linkTiers.includes("crazy")
       ? " 🤯 crazy pull!"
       : linkTiers.includes("deep cut")
@@ -1961,6 +1963,7 @@ function checkWin() {
   game.won = true;
   stopTimer();
   highlightPath(path);
+  tallyPath(path); // bridges earn their count the moment the chain closes
   if (questMulti()) {
     // mid-feature: a moment to admire the gold path, then the intermission
     setTimeout(() => endRound(true), 900);
@@ -2636,6 +2639,7 @@ function recordStub(line, ok) {
     blob: quest.blob, // lets a stub replay the exact feature
   });
   localStorage.setItem("stubs", JSON.stringify(stubs.slice(0, 30)));
+  queueSync();
 }
 
 // One-line description of a scene — shared by the premiere and the builder.
@@ -3498,6 +3502,7 @@ function saveToShelf(blob) {
   if (shelf.some((f) => JSON.stringify(f.blob) === json)) return; // re-release, unchanged
   shelf.unshift({ id: Date.now(), blob, savedAt: Date.now() });
   localStorage.setItem("shelf", JSON.stringify(shelf.slice(0, 30)));
+  queueSync();
 }
 
 // Test Run plays the whole feature through the same premiere the player
@@ -3588,13 +3593,21 @@ function openCasting(ctx) {
         : `Casting your ${ctx.slot === "start" ? "Start" : "Goal"}`
       : ctx.mode === "studio"
         ? "Casting for your feature"
-        : "The Back Lot";
+        : ctx.mode === "fav"
+          ? "A favorite connection — the first corner"
+          : "The Back Lot";
   $("#cast-title").innerHTML =
     ctx.mode === "research"
       ? `Follow the <em>threads</em>.`
-      : `Cast <em>anything</em>.`;
+      : ctx.mode === "fav"
+        ? `Frame a <em>route</em>.`
+        : `Cast <em>anything</em>.`;
   $("#btn-cast-back").innerHTML =
-    ctx.mode === "slot" ? "← back" : ctx.mode === "studio" ? "✓ done" : "← home";
+    ctx.mode === "slot" || ctx.mode === "fav"
+      ? "← back"
+      : ctx.mode === "studio"
+        ? "✓ done"
+        : "← home";
   $("#screen-cast").classList.toggle(
     "k-mode",
     ctx.mode === "studio" && builder.mode === "knowledge"
@@ -3621,6 +3634,19 @@ function renderCastTargets() {
 // the running tally of what's been cast so far (studio sessions only)
 function renderCastSession(flash) {
   const el = $("#cast-session");
+  if (cast.ctx?.mode === "fav") {
+    el.innerHTML =
+      flash ||
+      (cast.ctx.first
+        ? `First corner: <b>${esc(cast.ctx.first.name)}</b> — now cast the other end`
+        : "");
+    el.classList.toggle("flash", !!flash);
+    if (flash) {
+      clearTimeout(renderCastSession.t);
+      renderCastSession.t = setTimeout(() => renderCastSession(), 1400);
+    }
+    return;
+  }
   if (cast.ctx?.mode !== "studio") {
     el.textContent = "";
     return;
@@ -3746,6 +3772,24 @@ $("#cast-grid").addEventListener("click", (e) => {
     openCastDetail(item);
     return;
   }
+  if (ctx.mode === "fav") {
+    if (!ctx.first) {
+      ctx.first = item;
+      $("#cast-eyebrow").textContent = "…and the second corner";
+      renderCastSession(`✓ <b>${esc(item.name)}</b> — now cast the other end`);
+      return;
+    }
+    if (item.key === ctx.first.key) {
+      renderCastSession("that's the same corner — pick its partner");
+      return;
+    }
+    const favs = favList();
+    favs.push({ a: ctx.first, b: item });
+    saveFavs(favs);
+    renderProfile();
+    showT("profile");
+    return;
+  }
   if (ctx.mode === "slot") {
     if (ctx.goal != null) {
       goalRollSeq[ctx.goal]++; // cancel any in-flight roll
@@ -3835,6 +3879,11 @@ $("#btn-cast-back").addEventListener("click", () => {
   if (cast.ctx?.mode === "studio") {
     showT("scene");
     renderSceneEditor(); // repaint picks/chips the session may have changed
+    return;
+  }
+  if (cast.ctx?.mode === "fav") {
+    renderProfile(); // an abandoned pick saves nothing
+    showT("profile");
     return;
   }
   showT(cast.ctx?.mode === "research" ? "home" : "mode");
@@ -5586,6 +5635,7 @@ function recordDaily(ok, extra = {}) {
   if (log[date]) return false; // already settled today
   log[date] = { ok, ...extra };
   localStorage.setItem("dailyLog", JSON.stringify(log));
+  queueSync();
   return true;
 }
 
@@ -5800,6 +5850,469 @@ $("#btn-share-daily").addEventListener("click", async (e) => {
     location.href.split("#")[0];
   copyWithFeedback(e.currentTarget, text);
 });
+
+// ===== The Ledger — lifetime profile tallies (TODO #24) =====
+// The studio books: a running localStorage record incremented at the moments
+// the game already celebrates — the placement flare (deep cut / crazy pull)
+// and the winning path (bridge routing). Distinctness rules: a deep cut is
+// FOUND once (a Set of link ids — replaying or undo-cycling the same link
+// never double-counts); a bridge counts once per winning path it serves.
+// Solo modes only by decision (2026-07-08): Opening Night is the couch's
+// collective record, not yours, and fake friends would pollute the books.
+const LEDGER_KEY = "ledger";
+let ledger = null;
+
+function loadLedger() {
+  if (ledger) return ledger;
+  let raw = {};
+  try {
+    raw = JSON.parse(localStorage.getItem(LEDGER_KEY) || "{}");
+  } catch {}
+  ledger = {
+    deep: new Set(raw.deep || []), // distinct deep-cut links found
+    crazy: new Set(raw.crazy || []), // distinct crazy-pull links found
+    titles: new Set(raw.titles || []), // corners reached: every title a link touched
+    people: new Set(raw.people || []), // …and every person
+    bridges: raw.bridges || {}, // person key -> {n, name, img}: winning paths served
+    rarest: raw.rarest || null, // the single most obscure link ever: {rank, obs, tier, p, t}
+  };
+  return ledger;
+}
+
+function saveLedger() {
+  if (!ledger) return;
+  localStorage.setItem(
+    LEDGER_KEY,
+    JSON.stringify({
+      deep: [...ledger.deep],
+      crazy: [...ledger.crazy],
+      titles: [...ledger.titles],
+      people: [...ledger.people],
+      bridges: ledger.bridges,
+      rarest: ledger.rarest,
+    })
+  );
+  queueSync();
+}
+
+const linkId = (a, b) => (a.key < b.key ? a.key + "|" + b.key : b.key + "|" + a.key);
+
+// How far under the "famous" bar an item sits (fraction of the threshold —
+// the thresholds mirror fameTier; keep them in lockstep). Lower = rarer.
+// This is the cross-type tie-break for "your rarest link": tiers compare
+// first, the obscure end's ratio settles ties.
+function obscurity(item) {
+  if (item.fame == null) return Infinity;
+  return item.fame / (item.type === "person" ? 4 : 8000);
+}
+
+// Called on every successful solo placement, once per link it created.
+function tallyLink(a, b) {
+  loadLedger();
+  for (const it of [a, b]) (isTitle(it) ? ledger.titles : ledger.people).add(it.key);
+  const tier = edgeTier(a, b);
+  if (tier === "deep cut" || tier === "crazy") {
+    ledger[tier === "crazy" ? "crazy" : "deep"].add(linkId(a, b));
+    // every link joins a person to a title — display as "P was in T"
+    const p = a.type === "person" ? a : b;
+    const t = a.type === "person" ? b : a;
+    const rank = FAME_RANK[tier];
+    const obs = Math.min(obscurity(a), obscurity(b));
+    const cur = ledger.rarest;
+    if (!cur || rank > cur.rank || (rank === cur.rank && obs < cur.obs)) {
+      ledger.rarest = {
+        rank,
+        obs,
+        tier,
+        p: { name: p.name, img: p.img },
+        t: { name: t.name, img: t.img },
+      };
+    }
+  }
+  saveLedger();
+}
+
+// Called with each winning path: the interior people are your bridges.
+function tallyPath(path) {
+  loadLedger();
+  for (const k of path.slice(1, -1)) {
+    const it = game.nodes.get(k);
+    if (!it || it.type !== "person") continue;
+    const b = (ledger.bridges[k] ||= { n: 0, name: it.name, img: it.img });
+    b.n++;
+    b.name = it.name; // keep the display fresh if TMDB renames/re-images
+    b.img = it.img;
+  }
+  saveLedger();
+}
+
+// ===== Your Profile — stats as identity (TODO #24) =====
+// A pure render of the ledger + dailyLog. The page IS the argument for
+// accounts: anonymous play gets a "local reel"; signing in makes it follow you.
+
+function favList() {
+  try {
+    return JSON.parse(localStorage.getItem("favorites") || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveFavs(favs) {
+  localStorage.setItem("favorites", JSON.stringify(favs.slice(0, 4)));
+  queueSync();
+}
+
+// one end of a favorite: titles wear their poster, people are circles —
+// the board's visual language, framed
+const connEndHTML = (it) =>
+  `<div class="conn-end${it.type === "person" ? " person" : ""}">
+    ${it.img ? `<img src="${it.img}" alt="">` : `<div class="no-img">${TYPE_EMOJI[it.type]}</div>`}
+    <span class="cap">${esc(it.name)}</span></div>`;
+
+function renderFavGrid() {
+  const favs = favList();
+  let html = favs
+    .map(
+      (f, i) => `<div class="conn-card">
+        <button class="conn-remove" data-i="${i}" title="take it down">✕</button>
+        <div class="conn-row">${connEndHTML(f.a)}<div class="conn-thread"></div>${connEndHTML(f.b)}</div>
+        <div class="conn-caption"><b>${esc(f.a.name)}</b> → <b>${esc(f.b.name)}</b></div>
+      </div>`
+    )
+    .join("");
+  for (let i = favs.length; i < 4; i++)
+    html += `<button class="conn-card add">
+      <div><div class="plus">＋</div>Pick a connection<small>search any two — a route you love</small></div>
+    </button>`;
+  $("#fav-grid").innerHTML = html;
+}
+
+$("#fav-grid").addEventListener("click", (e) => {
+  const rm = e.target.closest(".conn-remove");
+  if (rm) {
+    const favs = favList();
+    favs.splice(+rm.dataset.i, 1);
+    saveFavs(favs);
+    renderFavGrid();
+    return;
+  }
+  if (e.target.closest(".conn-card.add")) openCasting({ mode: "fav", first: null });
+});
+
+function renderProfile() {
+  const log = dailyLog();
+  const played = dailyPlayed(log);
+  loadLedger();
+
+  $("#prof-streak").textContent = dailyStreak(log);
+  $("#prof-max").textContent = dailyMaxStreak(log);
+  $("#prof-pct").innerHTML = played.length
+    ? `${dailyWinPct(log)}<span class="pct">%</span>`
+    : "—";
+  $("#prof-deep").textContent = ledger.deep.size;
+
+  renderFavGrid();
+
+  // how you play: the medal distribution, dailyTier over every played day
+  const counts = { gold: 0, silver: 0, bronze: 0, loss: 0 };
+  for (const d of played) counts[dailyTier(log[d])]++;
+  const wins = counts.gold + counts.silver + counts.bronze;
+  $("#prof-dist-hint").textContent = played.length
+    ? `${wins} of ${played.length} dail${played.length === 1 ? "y" : "ies"} won`
+    : "";
+  const DIST_LABEL = {
+    gold: "gold — clean & hint-free",
+    silver: "silver — no hints",
+    bronze: "bronze — a little help",
+    loss: "lost",
+  };
+  $("#prof-dist").innerHTML = played.length
+    ? `<div class="dist">${["gold", "silver", "bronze", "loss"]
+        .filter((t) => counts[t])
+        .map((t) => `<div class="seg ${t}" style="flex:${counts[t]}" title="${DIST_LABEL[t]}">${counts[t]}</div>`)
+        .join("")}</div>
+      <div class="dist-legend">${["gold", "silver", "bronze", "loss"]
+        .filter((t) => counts[t])
+        .map((t) => `<span><b>${counts[t]}</b> ${DIST_LABEL[t]}</span>`)
+        .join("")}</div>`
+    : `<p class="dist-empty">No dailies on the books yet — the marquee's waiting.</p>`;
+
+  // signature bridge: the person your winning paths route through most
+  const top = Object.values(ledger.bridges).sort((x, y) => y.n - x.n)[0];
+  $("#prof-bridge").innerHTML =
+    `<p class="eyebrow">Your signature bridge</p>` +
+    (top
+      ? `<div class="bridge-row">
+          <div class="bridge-face">${top.img ? `<img src="${top.img}" alt="">` : "🧑"}</div>
+          <div><div class="bridge-big">You thread through <em>${esc(top.name)}</em></div>
+          <div class="bridge-sub">on ${top.n} winning path${top.n === 1 ? "" : "s"} — more than anyone else</div></div>
+        </div>`
+      : `<p class="id-empty">No winning paths yet — your go-to person will show up here.</p>`);
+
+  // the avatar is your signature bridge — who you are is who you route through
+  $("#prof-avatar").innerHTML = top?.img ? `<img src="${top.img}" alt="">` : "🎞";
+
+  $("#prof-breadth").innerHTML = `<p class="eyebrow">The corners you've reached</p>
+    <div class="breadth-row">
+      <div><div class="num">${ledger.titles.size}</div><div class="lbl">titles</div></div>
+      <div><div class="num">${ledger.people.size}</div><div class="lbl">people</div></div>
+      <div><div class="num crazy">${ledger.crazy.size}</div><div class="lbl">crazy pulls 🤯</div></div>
+    </div>`;
+
+  const r = ledger.rarest;
+  $("#prof-rarest").innerHTML =
+    `<p class="eyebrow">Your rarest link</p>` +
+    (r
+      ? `<div class="rare-row"><b>${esc(r.p.name)}</b><span class="was">was in</span><b>${esc(r.t.name)}</b>
+        <span class="rare-tag${r.tier === "deep cut" ? " deep" : ""}">${r.tier === "crazy" ? "crazy pull" : "deep cut"}</span>
+        <span class="was">— the most obscure connection you've ever made</span></div>`
+      : `<p class="id-empty">The single most obscure connection you ever make gets framed here.</p>`);
+
+  renderAccount();
+}
+
+$("#btn-profile").addEventListener("click", () => {
+  renderProfile();
+  showT("profile");
+});
+$("#btn-profile-back").addEventListener("click", () => showT("home"));
+$("#btn-profile-archive").addEventListener("click", () => {
+  renderArchive();
+  showT("archive");
+});
+
+// ===== Accounts — Supabase email OTP + local-first sync (TODO #23) =====
+// localStorage stays the source of truth; Supabase is a backup layer that
+// makes the profile follow you. The app boots with zero backend — if the CDN
+// script or the keys are missing, everything degrades to the local-only reel.
+// Anon key + RLS: safe to embed, same posture as the public TMDB key.
+const SUPABASE_URL = ""; // ← paste from the dashboard (Project Settings → API)
+const SUPABASE_KEY = "";
+
+let supa = null; // the client, once configured AND the CDN script has landed
+let acctUser = null; // the signed-in user (null = local reel)
+let acctEmail = ""; // where a code went, between send and verify
+let syncNote = ""; // one-line status under "Signed in"
+
+const profileShowing = () => !$("#screen-profile").classList.contains("hidden");
+
+function initSupa() {
+  if (supa || !SUPABASE_URL || !SUPABASE_KEY || !window.supabase) return;
+  supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  supa.auth.onAuthStateChange((event, session) => {
+    const was = acctUser?.id;
+    acctUser = session?.user || null;
+    if (!acctUser) syncNote = "";
+    if (acctUser && acctUser.id !== was) syncOnSignIn();
+    if (profileShowing()) renderAccount();
+  });
+}
+initSupa();
+window.addEventListener("load", initSupa); // in case the CDN script lands late
+
+function renderAccount() {
+  $("#acct-out").classList.toggle("hidden", !!acctUser || !!acctEmail);
+  $("#acct-code").classList.toggle("hidden", !!acctUser || !acctEmail);
+  $("#acct-in").classList.toggle("hidden", !acctUser);
+
+  const handle = acctUser ? acctUser.email.split("@")[0] : "local reel";
+  $("#prof-handle").innerHTML = `<em>${esc(handle)}</em>`;
+  $("#prof-sub").textContent = acctUser
+    ? `signed in as ${acctUser.email} — your profile follows you`
+    : "this device only — sign in below to keep it";
+  $("#acct-who").textContent = acctUser?.email || "";
+  $("#acct-sync-status").textContent = syncNote;
+
+  const ready = !!supa;
+  $("#acct-email").disabled = !ready;
+  $("#btn-acct-send").disabled = !ready;
+  if (!ready)
+    $("#acct-msg").textContent =
+      "accounts are still being wired up — your reel is safe locally.";
+  else if ($("#acct-msg").textContent.startsWith("accounts are still"))
+    $("#acct-msg").textContent = "";
+}
+
+function acctMsg(el, text, bad) {
+  $(el).textContent = text;
+  $(el).classList.toggle("bad", !!bad);
+}
+
+async function sendCode(email) {
+  if (!supa) return;
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    acctMsg("#acct-msg", "that doesn't look like an email address.", true);
+    return;
+  }
+  acctMsg("#acct-msg", "sending…");
+  acctMsg("#acct-code-msg", "");
+  const { error } = await supa.auth.signInWithOtp({ email }); // first sign-in creates the account
+  if (error) {
+    acctMsg("#acct-msg", error.message, true);
+    acctMsg("#acct-code-msg", error.message, true);
+    return;
+  }
+  acctEmail = email;
+  acctMsg("#acct-msg", "");
+  $("#acct-code-hint").textContent = `a 6-digit code is on its way to ${email}`;
+  acctMsg("#acct-code-msg", "");
+  renderAccount();
+  $("#acct-otp").focus();
+}
+
+$("#btn-acct-send").addEventListener("click", () =>
+  sendCode($("#acct-email").value.trim())
+);
+$("#acct-email").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendCode($("#acct-email").value.trim());
+});
+$("#btn-acct-resend").addEventListener("click", () => sendCode(acctEmail));
+
+async function verifyCode() {
+  if (!supa || !acctEmail) return;
+  const token = $("#acct-otp").value.trim();
+  if (!token) return;
+  acctMsg("#acct-code-msg", "checking…");
+  const { error } = await supa.auth.verifyOtp({
+    email: acctEmail,
+    token,
+    type: "email",
+  });
+  if (error) {
+    acctMsg("#acct-code-msg", "that code didn't take — check it or resend.", true);
+    return;
+  }
+  acctEmail = "";
+  $("#acct-otp").value = "";
+  acctMsg("#acct-code-msg", "");
+  renderAccount(); // onAuthStateChange handles the merge
+}
+
+$("#btn-acct-verify").addEventListener("click", verifyCode);
+$("#acct-otp").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") verifyCode();
+});
+
+$("#btn-acct-out").addEventListener("click", async () => {
+  await supa?.auth.signOut();
+  acctEmail = "";
+  renderAccount(); // the local reel keeps everything — signing out loses nothing
+});
+
+// ---- the sync layer: merge on sign-in, write-through after ----
+function lsJSON(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? fallback);
+  } catch {
+    return JSON.parse(fallback);
+  }
+}
+
+function localState() {
+  return {
+    daily_log: lsJSON("dailyLog", "{}"),
+    shelf: lsJSON("shelf", "[]"),
+    stubs: lsJSON("stubs", "[]"),
+    favorites: lsJSON("favorites", "[]"),
+    ledger: lsJSON(LEDGER_KEY, "{}"),
+  };
+}
+
+// Merge rules (decided 2026-07-08): dailyLog merges per-date with local
+// winning conflicts (both sides were honestly "first" on their own device);
+// shelf/stubs/favorites union deduped local-first, keeping the caps; ledger
+// sets union; bridge counts take the MAX, never the sum (both sides grew from
+// the same synced base — summing would double history); rarest keeps the rarer.
+function mergeState(local, remote) {
+  const dedupe = (arr, keyFn, cap) => {
+    const seen = new Set();
+    const out = [];
+    for (const x of arr) {
+      const k = keyFn(x);
+      if (k == null || seen.has(k)) continue;
+      seen.add(k);
+      out.push(x);
+      if (out.length >= cap) break;
+    }
+    return out;
+  };
+  const uni = (a, b) => [...new Set([...(a || []), ...(b || [])])];
+  const ll = local.ledger || {};
+  const rl = remote.ledger || {};
+  const bridges = { ...(rl.bridges || {}) };
+  for (const [k, v] of Object.entries(ll.bridges || {}))
+    if (!bridges[k] || v.n >= bridges[k].n) bridges[k] = v;
+  const rarer = (x, y) =>
+    !x ? y : !y ? x : y.rank > x.rank || (y.rank === x.rank && y.obs < x.obs) ? y : x;
+  return {
+    daily_log: { ...(remote.daily_log || {}), ...local.daily_log },
+    shelf: dedupe(
+      [...local.shelf, ...(remote.shelf || [])],
+      (f) => JSON.stringify(f.blob),
+      30
+    ),
+    stubs: dedupe([...local.stubs, ...(remote.stubs || [])], (s) => s.when, 30),
+    favorites: dedupe(
+      [...local.favorites, ...(remote.favorites || [])],
+      (f) => f.a?.key + "|" + f.b?.key,
+      4
+    ),
+    ledger: {
+      deep: uni(ll.deep, rl.deep),
+      crazy: uni(ll.crazy, rl.crazy),
+      titles: uni(ll.titles, rl.titles),
+      people: uni(ll.people, rl.people),
+      bridges,
+      rarest: rarer(ll.rarest, rl.rarest),
+    },
+  };
+}
+
+async function syncOnSignIn() {
+  syncNote = "syncing…";
+  if (profileShowing()) renderAccount();
+  const { data, error } = await supa
+    .from("profiles")
+    .select("*")
+    .eq("id", acctUser.id)
+    .maybeSingle();
+  if (error) {
+    syncNote = "sync failed — playing local";
+    if (profileShowing()) renderAccount();
+    return;
+  }
+  const merged = mergeState(localState(), data || {});
+  localStorage.setItem("dailyLog", JSON.stringify(merged.daily_log));
+  localStorage.setItem("shelf", JSON.stringify(merged.shelf));
+  localStorage.setItem("stubs", JSON.stringify(merged.stubs));
+  localStorage.setItem("favorites", JSON.stringify(merged.favorites));
+  localStorage.setItem(LEDGER_KEY, JSON.stringify(merged.ledger));
+  ledger = null; // reload from the merged books on next touch
+  await pushState(merged);
+  if (profileShowing()) renderProfile();
+  initDailyStrip(); // the merged log may change the marquee status
+}
+
+async function pushState(state = localState()) {
+  if (!supa || !acctUser) return;
+  const { error } = await supa.from("profiles").upsert({
+    id: acctUser.id,
+    handle: acctUser.email.split("@")[0],
+    ...state,
+    updated_at: new Date().toISOString(),
+  });
+  syncNote = error ? "sync failed — changes are safe locally" : "synced ✓";
+  if (profileShowing()) renderAccount();
+}
+
+// Write-through: any local save nudges a debounced push. Cheap to call,
+// no-op while signed out.
+let syncTimer = null;
+function queueSync() {
+  if (!supa || !acctUser) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => pushState(), 3000);
+}
 
 // ---- Boot ----
 if (apiKey) {
