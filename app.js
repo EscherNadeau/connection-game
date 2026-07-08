@@ -6086,8 +6086,8 @@ $("#btn-profile-archive").addEventListener("click", () => {
 // makes the profile follow you. The app boots with zero backend — if the CDN
 // script or the keys are missing, everything degrades to the local-only reel.
 // Anon key + RLS: safe to embed, same posture as the public TMDB key.
-const SUPABASE_URL = ""; // ← paste from the dashboard (Project Settings → API)
-const SUPABASE_KEY = "";
+const SUPABASE_URL = "https://ghgqrzzjpjyigayakwsa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_E8dElRRbq1gvmh6EVKgzWg_zSyEMVaR";
 
 let supa = null; // the client, once configured AND the CDN script has landed
 let acctUser = null; // the signed-in user (null = local reel)
