@@ -71,7 +71,7 @@ PC hosts the shared stage; phones are controllers; the phone NEVER shows the boa
 
 ## Creation & sharing
 
-- **Challenge links:** any game serializes into a URL hash — no server, the link IS the level. Budgets, bans, waypoints, type restrictions, par.
+- **Challenge links:** any game serializes into a URL hash — no server, the link IS the level. Budgets, bans, waypoints, type restrictions, par. Their real job is not distributing puzzles but **distributing discovery** — the click delivers the surprise by making the receiver earn their own.
 - **The Studio:** a WYSIWYG builder for **features** — one to five scenes with a marquee title, tagline, and credit. Test Screening stamps your par. Every feature premieres on a title card with fanned posters and a "Roll Film" button; multi-scene features get intermissions and a finale where each scene is its own colored island on one big board.
 - **Tickets:** a feature as a movie-ticket PNG with the level embedded in the image file itself. Drop the picture on the app and it plays. (Metadata-only: the original file is required.)
 - **The Box Office:** shelves — Staff Picks (curated, bundled), Your Filmography (things you've released), Ticket Stubs (every feature you've finished, replayable).
@@ -86,6 +86,17 @@ PC hosts the shared stage; phones are controllers; the phone NEVER shows the boa
 ---
 
 ## Design principles (the ones that keep deciding arguments)
+
+**The lens** *(named 2026-07-08 by an outside review that put words to what the decision log had been doing on instinct):*
+
+- **Surprise is the product.** Movie connections are the mechanic; the game is discovering and sharing surprising pieces of movie history. The huddle amplifies it. The share extends it.
+- **The feature filter.** Every new feature must do at least one of: help players *discover* an unexpected connection; make that discovery feel more *exciting*; or give players a reason to *tell someone else*. If it does none of the three, it's complexity without the feeling the game is built on.
+- **Three reveal surfaces, three jobs — never mixed.**
+  - The **win screen rewards you**: full reveal, loud — name the pull.
+  - The **text share tempts them**: tease the tier, never name the pull — the click should deliver the surprise, and with a challenge link attached, the surprise they get is the one they *earn*.
+  - The **share card celebrates you**: the full route, deliberately shown. A trophy isn't a spoiler; it's a souvenir.
+
+**The house rules:**
 
 1. **The wow lives in the credit, not the celebrity.** Score links, not names; badge the arrows, not the posters.
 2. **Maximum fun, minimum friction.** The best version of any feature is the one with fewer steps. Tier 0 needs zero ceremony.
