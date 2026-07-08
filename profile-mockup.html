@@ -1,0 +1,510 @@
+<title>Your Profile — The Connection Game</title>
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --card: #fbf7ef;
+    --ink: #1b1812;
+    --muted: #8d8779;
+    --line: rgba(27, 24, 18, 0.08);
+    --line-strong: rgba(27, 24, 18, 0.14);
+    --start: #4f9a6c;
+    --goal: #d96f59;
+    --gold: #cf9c3a;
+    --silver: #9099a3;
+    --bronze: #b4794a;
+    --loss: #c0523f;
+    --shadow-soft: 0 24px 60px -18px rgba(27, 24, 18, 0.18);
+    --shadow-tiny: 0 2px 10px rgba(27, 24, 18, 0.06);
+    --radius: 22px;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14110d;
+      --card: #1e1a14;
+      --ink: #ece6d8;
+      --muted: #9a927f;
+      --line: rgba(236, 230, 216, 0.1);
+      --line-strong: rgba(236, 230, 216, 0.18);
+      --start: #6db98a;
+      --goal: #e58a74;
+      --gold: #ddb05a;
+      --silver: #a7afba;
+      --bronze: #c68f5f;
+      --loss: #e0715c;
+      --shadow-soft: 0 24px 60px -18px rgba(0, 0, 0, 0.6);
+      --shadow-tiny: 0 2px 12px rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14110d; --card: #1e1a14; --ink: #ece6d8; --muted: #9a927f;
+    --line: rgba(236, 230, 216, 0.1); --line-strong: rgba(236, 230, 216, 0.18);
+    --start: #6db98a; --goal: #e58a74; --gold: #ddb05a; --silver: #a7afba;
+    --bronze: #c68f5f; --loss: #e0715c;
+    --shadow-soft: 0 24px 60px -18px rgba(0, 0, 0, 0.6);
+    --shadow-tiny: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+  :root[data-theme="light"] {
+    --paper: #f4f1ea; --card: #fbf7ef; --ink: #1b1812; --muted: #8d8779;
+    --line: rgba(27, 24, 18, 0.08); --line-strong: rgba(27, 24, 18, 0.14);
+    --start: #4f9a6c; --goal: #d96f59; --gold: #cf9c3a; --silver: #9099a3;
+    --bronze: #b4794a; --loss: #c0523f;
+    --shadow-soft: 0 24px 60px -18px rgba(27, 24, 18, 0.18);
+    --shadow-tiny: 0 2px 10px rgba(27, 24, 18, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image: var(--grain);
+    pointer-events: none; z-index: 0; opacity: 0.9;
+  }
+  .serif {
+    font-family: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 40px 22px 80px;
+  }
+  .eyebrow {
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h2.section-title {
+    font-size: 1.5rem; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  h2.section-title .serif { font-size: 1.7rem; }
+  .section { margin-top: 52px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+  .section-head .hint { font-size: 0.8rem; color: var(--muted); }
+
+  /* ---------- concept ribbon ---------- */
+  .ribbon {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--muted);
+    border: 1px dashed var(--line-strong); border-radius: 999px;
+    padding: 6px 13px; margin-bottom: 26px;
+  }
+  .ribbon b { color: var(--gold); }
+
+  /* ---------- profile header ---------- */
+  .profile-head {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .avatar {
+    width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(150deg, #caa25e, #7a5a34);
+    display: flex; align-items: flex-end; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 0.62rem; letter-spacing: 0.08em;
+    text-transform: uppercase; padding-bottom: 10px;
+    box-shadow: 0 0 0 2px var(--gold), 0 10px 26px -8px rgba(0,0,0,0.4);
+  }
+  .id-block { min-width: 0; }
+  .handle { font-size: 1.9rem; letter-spacing: -0.02em; line-height: 1.1; }
+  .id-sub { color: var(--muted); font-size: 0.9rem; margin-top: 3px; }
+  .id-sub .accent { color: var(--goal); font-weight: 600; }
+  .head-spacer { flex: 1; }
+  .btn-ghost {
+    border: 1px solid var(--line-strong); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 9px 17px; font: inherit; font-size: 0.82rem; cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--card); }
+
+  /* ---------- hero trio ---------- */
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 30px;
+  }
+  .stat {
+    background: var(--card); background-image: var(--grain);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px 18px; box-shadow: var(--shadow-tiny);
+  }
+  .stat .num {
+    font-size: 2.2rem; letter-spacing: -0.03em; line-height: 1;
+    font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px;
+  }
+  .stat .num .unit { font-size: 1rem; color: var(--muted); }
+  .stat .lbl { font-size: 0.72rem; color: var(--muted); margin-top: 10px; letter-spacing: 0.02em; }
+  .stat.flare .num { color: var(--gold); }
+  .stat.flame .num { color: var(--goal); }
+
+  /* ---------- four favorite connections (the hero) ---------- */
+  .fav-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  }
+  .conn-card {
+    background: var(--card); background-image: var(--grain);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; box-shadow: var(--shadow-tiny);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .conn-row { display: flex; align-items: center; gap: 6px; }
+  .poster {
+    flex: 1; min-width: 0; aspect-ratio: 2/3; border-radius: 12px;
+    position: relative; overflow: hidden;
+    display: flex; align-items: flex-end;
+    box-shadow: var(--shadow-tiny); border: 1px solid var(--line-strong);
+  }
+  .poster .fill { position: absolute; inset: 0; opacity: 0.92; }
+  .poster .cap {
+    position: relative; padding: 9px 10px; font-size: 0.74rem; font-weight: 600; line-height: 1.15;
+    color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.6); z-index: 1;
+  }
+  .face {
+    flex: 1; min-width: 0; aspect-ratio: 1; border-radius: 50%;
+    position: relative; overflow: hidden; align-self: center;
+    display: flex; align-items: flex-end; justify-content: center;
+    box-shadow: var(--shadow-tiny); border: 1px solid var(--line-strong);
+    max-width: 118px;
+  }
+  .face .fill { position: absolute; inset: 0; opacity: 0.92; }
+  .face .cap {
+    position: relative; z-index: 1; padding-bottom: 12px; font-size: 0.68rem; font-weight: 700;
+    color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.7); text-align: center;
+  }
+  .thread {
+    flex-shrink: 0; width: 46px; height: 2px; position: relative;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .thread::before {
+    content: attr(data-n); position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card); border: 1px solid var(--gold); color: var(--gold);
+    font-size: 0.6rem; font-weight: 700; border-radius: 999px; padding: 2px 6px;
+    box-shadow: 0 0 10px -2px var(--gold);
+  }
+  .conn-caption { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .conn-caption .names { font-size: 0.9rem; }
+  .conn-caption .names b { font-weight: 600; }
+  .tag {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 9px; border: 1px solid var(--line-strong); color: var(--muted);
+  }
+  .tag.deep { color: var(--gold); border-color: var(--gold); }
+  .tag.crazy { color: var(--goal); border-color: var(--goal); }
+  .conn-card.add {
+    align-items: center; justify-content: center; text-align: center;
+    border-style: dashed; color: var(--muted); min-height: 220px; cursor: pointer;
+  }
+  .conn-card.add:hover { border-color: var(--gold); color: var(--ink); }
+  .conn-card.add .plus { font-size: 1.6rem; margin-bottom: 6px; }
+
+  /* ---------- the archive calendar ---------- */
+  .archive-panel {
+    background: var(--card); background-image: var(--grain);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px; box-shadow: var(--shadow-tiny);
+  }
+  .cal { display: grid; grid-template-columns: repeat(14, 1fr); gap: 7px; }
+  .cell {
+    aspect-ratio: 1; border-radius: 7px; background: transparent;
+    border: 1px solid var(--line-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: var(--muted);
+  }
+  .cell.skip { border-style: dotted; }
+  .cell.gold { border: 2px solid var(--gold); box-shadow: 0 0 10px -3px var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); color: var(--ink); }
+  .cell.silver { border: 2px solid var(--silver); background: color-mix(in srgb, var(--silver) 12%, transparent); color: var(--ink); }
+  .cell.bronze { border: 2px solid var(--bronze); background: color-mix(in srgb, var(--bronze) 12%, transparent); color: var(--ink); }
+  .cell.loss { border: 1px solid var(--loss); color: var(--loss); }
+  .cal-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 18px; font-size: 0.74rem; color: var(--muted); }
+  .cal-legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; }
+  .dot.gold { border: 2px solid var(--gold); } .dot.silver { border: 2px solid var(--silver); }
+  .dot.bronze { border: 2px solid var(--bronze); } .dot.loss { border: 1px solid var(--loss); }
+  .dot.skip { border: 1px dotted var(--line-strong); }
+
+  /* ---------- distribution bar ---------- */
+  .dist { display: flex; height: 40px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .dist .seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dist .seg + .seg { box-shadow: inset 2px 0 0 var(--card); }
+  .seg.gold { background: var(--gold); } .seg.silver { background: var(--silver); }
+  .seg.bronze { background: var(--bronze); } .seg.loss { background: var(--loss); }
+  .dist-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; font-size: 0.78rem; color: var(--muted); }
+  .dist-legend b { color: var(--ink); }
+
+  /* ---------- connector identity ---------- */
+  .conn-id { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .id-card {
+    background: var(--card); background-image: var(--grain);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; box-shadow: var(--shadow-tiny);
+  }
+  .id-card .eyebrow { margin-bottom: 12px; display: block; }
+  .bridge { display: flex; align-items: center; gap: 16px; }
+  .bridge .face { width: 66px; height: 66px; max-width: none; flex: none; }
+  .bridge .big { font-size: 1.35rem; letter-spacing: -0.01em; }
+  .bridge .sub { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+  .breadth { display: flex; gap: 30px; }
+  .breadth .num { font-size: 2.1rem; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .breadth .lbl { font-size: 0.74rem; color: var(--muted); margin-top: 8px; }
+  .rare-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .rare-row .names { font-size: 0.95rem; }
+
+  /* ---------- charts teaser ---------- */
+  .teaser {
+    border: 1px dashed var(--line-strong); border-radius: var(--radius);
+    padding: 22px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    color: var(--muted);
+  }
+  .teaser .soon {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 11px;
+  }
+  .teaser .t-title { color: var(--ink); font-size: 1.05rem; }
+  .teaser ul { margin: 0; padding-left: 18px; font-size: 0.85rem; }
+
+  .foot { margin-top: 60px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
+  .foot b { color: var(--ink); }
+
+  @media (max-width: 720px) {
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    .fav-grid, .conn-id { grid-template-columns: 1fr; }
+    .cal { grid-template-columns: repeat(7, 1fr); }
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="ribbon">Concept mock · <b>sample data</b> · react to the shape, not the numbers</div>
+
+  <!-- ===== PROFILE HEADER ===== -->
+  <div class="profile-head">
+    <div class="avatar">Buscemi</div>
+    <div class="id-block">
+      <div class="handle serif">escher</div>
+      <div class="id-sub">Connecting cinema since <span class="accent">March 2026</span> · 214 deep cuts found</div>
+    </div>
+    <div class="head-spacer"></div>
+    <button class="btn-ghost">Edit profile</button>
+  </div>
+
+  <div class="hero-stats">
+    <div class="stat flame">
+      <div class="num">12<span class="unit">days</span></div>
+      <div class="lbl">Current daily streak 🔥</div>
+    </div>
+    <div class="stat">
+      <div class="num">27</div>
+      <div class="lbl">Longest streak</div>
+    </div>
+    <div class="stat">
+      <div class="num">84<span class="unit">%</span></div>
+      <div class="lbl">Daily win rate</div>
+    </div>
+    <div class="stat flare">
+      <div class="num">214</div>
+      <div class="lbl">Deep cuts found ✨</div>
+    </div>
+  </div>
+
+  <!-- ===== FOUR FAVORITE CONNECTIONS (THE HERO) ===== -->
+  <div class="section">
+    <div class="section-head">
+      <h2 class="section-title">Four favorite <span class="serif">connections</span></h2>
+      <span class="hint">your signature routes — the ones you'd frame</span>
+    </div>
+    <div class="fav-grid">
+
+      <div class="conn-card">
+        <div class="conn-row">
+          <div class="face"><div class="fill" style="background:linear-gradient(150deg,#6a86b8,#33405e)"></div><div class="cap">Buster<br>Keaton</div></div>
+          <div class="thread" data-n="4"></div>
+          <div class="poster"><div class="fill" style="background:linear-gradient(150deg,#b8563e,#5c1d13)"></div><div class="cap">Mad Max:<br>Fury Road</div></div>
+        </div>
+        <div class="conn-caption">
+          <span class="names"><b>Keaton</b> → <b>Fury Road</b>, 4 links</span>
+          <span class="tag crazy">crazy pull</span>
+        </div>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-row">
+          <div class="face"><div class="fill" style="background:linear-gradient(150deg,#c98b4a,#6e4620)"></div><div class="cap">Robin<br>Williams</div></div>
+          <div class="thread" data-n="3"></div>
+          <div class="poster"><div class="fill" style="background:linear-gradient(150deg,#3d5c52,#131f1a)"></div><div class="cap">Alien</div></div>
+        </div>
+        <div class="conn-caption">
+          <span class="names"><b>Williams</b> → <b>Alien</b>, 3 links</span>
+          <span class="tag deep">deep cut</span>
+        </div>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-row">
+          <div class="face"><div class="fill" style="background:linear-gradient(150deg,#8a8f97,#3f434a)"></div><div class="cap">Toshiro<br>Mifune</div></div>
+          <div class="thread" data-n="5"></div>
+          <div class="poster"><div class="fill" style="background:linear-gradient(150deg,#a8863c,#4a3411)"></div><div class="cap">Pulp<br>Fiction</div></div>
+        </div>
+        <div class="conn-caption">
+          <span class="names"><b>Mifune</b> → <b>Pulp Fiction</b>, 5 links</span>
+          <span class="tag deep">clean chain</span>
+        </div>
+      </div>
+
+      <div class="conn-card add">
+        <div>
+          <div class="plus">＋</div>
+          <div>Pick a connection</div>
+          <div style="font-size:0.78rem;margin-top:4px;">search any two — a route you love</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== THE ARCHIVE ===== -->
+  <div class="section">
+    <div class="section-head">
+      <h2 class="section-title">The <span class="serif">Archive</span></h2>
+      <span class="hint">every daily, kept — border = how you won it</span>
+    </div>
+    <div class="archive-panel">
+      <div class="cal">
+        <div class="cell skip"></div>
+        <div class="cell gold">✓</div>
+        <div class="cell silver">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell bronze">✓</div>
+        <div class="cell loss">✗</div>
+        <div class="cell skip"></div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell silver">✓</div>
+        <div class="cell bronze">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell skip"></div>
+        <div class="cell silver">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell bronze">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell silver">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell silver">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell bronze">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+        <div class="cell gold">✓</div>
+      </div>
+      <div class="cal-legend">
+        <span><i class="dot gold"></i> gold — no hints, 3★</span>
+        <span><i class="dot silver"></i> silver — no hints</span>
+        <span><i class="dot bronze"></i> bronze — used a hint</span>
+        <span><i class="dot loss"></i> lost the day</span>
+        <span><i class="dot skip"></i> didn't play</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HOW YOU PLAY (DISTRIBUTION) ===== -->
+  <div class="section">
+    <div class="section-head">
+      <h2 class="section-title">How you <span class="serif">play</span></h2>
+      <span class="hint">40 dailies won</span>
+    </div>
+    <div class="dist">
+      <div class="seg gold" style="flex:22" title="Gold: 22">22</div>
+      <div class="seg silver" style="flex:11" title="Silver: 11">11</div>
+      <div class="seg bronze" style="flex:7" title="Bronze: 7">7</div>
+    </div>
+    <div class="dist-legend">
+      <span><b>22</b> gold — clean &amp; hint-free</span>
+      <span><b>11</b> silver — no hints</span>
+      <span><b>7</b> bronze — a little help</span>
+      <span><b>3.4</b> avg links to solve</span>
+    </div>
+  </div>
+
+  <!-- ===== YOU, AS A CONNECTOR ===== -->
+  <div class="section">
+    <div class="section-head">
+      <h2 class="section-title">You, as a <span class="serif">connector</span></h2>
+      <span class="hint">the wow lives in the credit, not the celebrity</span>
+    </div>
+    <div class="conn-id">
+
+      <div class="id-card">
+        <span class="eyebrow">Your signature bridge</span>
+        <div class="bridge">
+          <div class="face"><div class="fill" style="background:linear-gradient(150deg,#caa25e,#7a5a34)"></div><div class="cap">SB</div></div>
+          <div>
+            <div class="big">You thread through <span class="serif">Steve Buscemi</span></div>
+            <div class="sub">routed through him <b>41 times</b> — more than anyone else</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="id-card">
+        <span class="eyebrow">The corners you've reached</span>
+        <div class="breadth">
+          <div>
+            <div class="num">1,240</div>
+            <div class="lbl">titles connected</div>
+          </div>
+          <div>
+            <div class="num">890</div>
+            <div class="lbl">people connected</div>
+          </div>
+          <div>
+            <div class="num" style="color:var(--goal)">19</div>
+            <div class="lbl">crazy pulls 🤯</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="id-card" style="grid-column:1 / -1">
+        <span class="eyebrow">Your rarest link</span>
+        <div class="rare-row">
+          <span class="names"><b>Harold Ramis</b> <span style="color:var(--muted)">was in</span> <b>Airheads</b></span>
+          <span class="tag crazy">crazy pull</span>
+          <span style="color:var(--muted);font-size:0.82rem">— the single most obscure connection you've ever made</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== COMING TO THE CHARTS ===== -->
+  <div class="section">
+    <div class="teaser">
+      <span class="soon">next</span>
+      <div style="flex:1;min-width:220px">
+        <div class="t-title serif">The Charts</div>
+        <div style="font-size:0.85rem;margin-top:4px">when accounts go live, your profile becomes comparable:</div>
+      </div>
+      <ul>
+        <li>today's cleanest solves, ranked</li>
+        <li>longest streaks on the board</li>
+        <li>how often players beat <b>your</b> Studio pars</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>What's real vs. new:</b> the streak, win rate, medal calendar and distribution are already computable from
+    <b>dailyLog</b> — the data you're sitting on. Deep cuts, crazy pulls, breadth, signature bridge and rarest link
+    need one small addition: a running tally the game increments when it already fires its deep-cut / crazy-pull
+    flares. Four Favorite Connections is the only piece that's purely new UI (pick two via the existing search).
+    Accounts + Supabase are what make this profile follow you across devices — and later, feed The Charts.
+  </div>
+
+</div>
