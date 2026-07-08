@@ -2519,7 +2519,7 @@ async function loadFeature(c, link = "") {
       // (early v3 links carried global h/ty — read those as fallbacks)
       const bans = new Set(c.bans || []);
       quest.rounds = await Promise.all(
-        c.sc.slice(0, 5).map(async (s) => ({
+        c.sc.slice(0, MAX_SCENES).map(async (s) => ({
           mode: s.m === "k" ? "knowledge" : "classic",
           start: await fetchItemByKey(s.s),
           goal: s.g ? await fetchItemByKey(s.g) : null,
@@ -3099,7 +3099,9 @@ function renderStage() {
       ? "＋ add your first scene"
       : n >= MAX_SCENES
         ? `the reel is full — ${MAX_SCENES} scenes`
-        : "＋ add a scene";
+        : n >= SOFT_SCENES
+          ? "＋ add a scene — roadshow territory"
+          : "＋ add a scene";
   $("#btn-build-test").disabled = n === 0;
   $("#btn-build-copy").disabled = n === 0;
   $("#btn-build-ticket").disabled = n === 0;
@@ -3292,7 +3294,12 @@ $("#build-ban-chips").addEventListener("click", (e) => {
 });
 
 // ---- Scenes: the feature reel ----
-const MAX_SCENES = 5; // raise once features live in a backend, not the URL
+// 5 is the marquee length, not the law (Escher, 2026-07-08): past SOFT_SCENES
+// the add button just notes you're in roadshow territory — the old-Hollywood
+// word for features long enough to need intermissions, which these literally
+// have. MAX_SCENES stays a hard rail for the URL blob / finale board.
+const SOFT_SCENES = 5;
+const MAX_SCENES = 12;
 
 function sceneFromDraft() {
   const allTypes = Object.values(builder.types).every(Boolean);
