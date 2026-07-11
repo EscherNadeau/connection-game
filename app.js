@@ -2153,8 +2153,8 @@ function checkWin() {
     headline: pullText ? pullText + "." : "Connected.",
     subtitle: dailyActive
       ? `Now Showing · ${cardDateNice()}`
-      : rules?.title
-        ? `“${rules.title}”`
+      : game.rules?.title
+        ? `“${game.rules.title}”`
         : "The Connection Game",
     stars,
     lines: [{ items: path.map((k) => game.nodes.get(k)), tiers: linkTiers }],
