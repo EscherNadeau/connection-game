@@ -2811,3 +2811,93 @@ button.cal-cell[data-date]:hover { transform: translateY(-2px); border-color: va
     animation: flare-veil 1.9s ease both; /* fade only, no pop */
   }
 }
+
+/* ===== the reveal (post-game exploration) ===== */
+/* Toolbar for the opened-up web — bottom-center, clear of the results
+   button pinned bottom-right. */
+.reveal-bar {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  gap: 10px;
+}
+.reveal-bar .btn {
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+
+/* the credit grid inside the peek modal — scrolls internally so the sheet
+   never grows past the viewport (layout stability rule) */
+.peek-conns-wrap { margin-top: 16px; }
+.peek-conns-wrap .eyebrow { margin-bottom: 10px; }
+.peek-conns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 12px 10px;
+  max-height: 34vh;
+  overflow-y: auto;
+  padding: 2px 4px 6px 2px;
+}
+.peek-conn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: var(--ink);
+}
+.peek-conn img,
+.peek-conn .no-img {
+  width: 76px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  transition: transform 0.15s, outline-color 0.15s;
+  outline: 2px solid transparent;
+}
+.peek-conn:hover img,
+.peek-conn:hover .no-img {
+  outline-color: var(--gold);
+  transform: translateY(-2px);
+}
+.peek-conn .pc-name {
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.25;
+}
+.peek-conn.on-board { opacity: 0.55; }
+.peek-conn.on-board .pc-name::after {
+  content: " · on the web";
+  color: var(--muted);
+}
+
+/* the tightest-route highlight — sage, dashed, distinct from the gold win
+   path so both can read at once */
+.edge.alt-path {
+  stroke: var(--start);
+  stroke-width: 3.5;
+  stroke-dasharray: 10 7;
+  filter: drop-shadow(0 0 6px rgba(111, 185, 138, 0.55));
+}
+.gnode.alt-path .token {
+  box-shadow: 0 0 0 2px var(--start), 0 0 24px rgba(111, 185, 138, 0.55);
+}
+
+/* reveal-mode peek: the credits are the point — smaller poster, wider
+   panel, room for the grid */
+.peek-panel.reveal { max-width: 600px; }
+.peek-panel.reveal .detail-poster { width: min(180px, 40vw); }

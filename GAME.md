@@ -44,8 +44,11 @@ Two corners — a Start and a Goal. Search anything; if it connects to something
 
 **Scoring is stars by links, not speed:** ⭐ connected · ⭐⭐ clean chain (no famous↔famous link) · ⭐⭐⭐ clean plus a deep-cut/crazy link. A "🎞 one take" flourish when every placement made the gold path. Deep-cut and crazy-pull flares fire *the moment you place them* — the celebration happens live, not at the end.
 
-### Knowledge (blitz)
-One center item, a clock, name everything directly connected to it. Placements are correct by definition; the round ends when time does.
+### Credits (blitz)
+One center item, a clock, name everything directly connected to it. Placements are correct by definition; the round ends when time does. *(Renamed from "Knowledge" 2026-07-11 — you're reciting the credits; the internal mode id stays `knowledge`.)*
+
+### The Reveal (post-game, built 2026-07-11)
+After a finish, "view the web" opens the board up instead of just showing it. Tap anything and its **credits become walkable** — tap a credit to add it to the web (the answer sheet is the fun now; mid-game this exact list is forbidden). A **tightest route** tool shows the shortest path the current web allows — expand the web and a better road can appear, which quietly teaches how the game is played. **Frame the web** saves the whole board as a warm-paper one-sheet PNG: marquee title, gold winning path, sage/clay endpoint rings. Nothing in the reveal writes the ledger or the record — it's browsing, not playing.
 
 ### Double Feature (internally "hybrid")
 One start, one to three goals picked visibly at setup, all on the board from move one. Win = every goal connected; the signature stat is nodes that served more than one path.

@@ -441,7 +441,7 @@ $("#btn-back-home").addEventListener("click", () => showT("home"));
 // The big button cycles through play modes; future modes slot in here.
 const HOME_MODES = [
   { id: "classic", label: "Play Classic", desc: "Random corners of cinema — link them." },
-  { id: "knowledge", label: "Play Knowledge", desc: "One subject, one clock — name everything connected to it." },
+  { id: "knowledge", label: "Play Credits", desc: "One subject, one clock — name everything connected to it." },
   { id: "hybrid", label: "Play Double Feature", desc: "One start, many destinations — weave a web that reaches them all." },
   { id: "challenge", label: "The Studio", desc: "Direct a feature: stack scenes, set the rules, share the premiere." },
   { id: "backlot", label: "The Back Lot", desc: "No clock, no stakes — wander the catalog and follow the threads." },
@@ -841,6 +841,9 @@ async function startKnowledge(start, bar = 0, rules = null) {
   game.phase = 0;
   game.goals = [];
   game.goalKeys = null;
+  game.winPath = null;
+  game.winPaths = null;
+  exitReveal();
   hintsUsed = 0;
 
   finaleView = false;
@@ -890,6 +893,9 @@ async function startGame(start, end, rules = null) {
   game.lastPlaced = null;
   game.won = false;
   game.over = false;
+  game.winPath = null;
+  game.winPaths = null;
+  exitReveal();
   game.target = 0;
   game.phase = 0;
   game.goals = [];
@@ -999,6 +1005,9 @@ async function startHybrid(start, goals) {
   game.lastPlaced = null;
   game.won = false;
   game.over = false;
+  game.winPath = null;
+  game.winPaths = null;
+  exitReveal();
   game.target = 0;
   game.bar = 0;
   hintsUsed = 0;
@@ -1064,6 +1073,7 @@ function hybridCheckWin() {
   game.won = true;
   stopTimer();
   highlightPaths(paths);
+  game.winPaths = paths; // the reveal + the frame both read them later
   for (const p of paths) tallyPath(p); // a node serving two goals bridges twice — earned
   showHybridWin(paths);
 }
@@ -2035,6 +2045,7 @@ function checkWin() {
   game.won = true;
   stopTimer();
   highlightPath(path);
+  game.winPath = path; // the reveal + the frame both read it later
   tallyPath(path); // bridges earn their count the moment the chain closes
   if (questMulti()) {
     // mid-feature: a moment to admire the gold path, then the intermission
@@ -2164,10 +2175,14 @@ attachAutocomplete($("#game-search-input"), $("#game-suggestions"), tryPlace);
 $("#btn-view-web").addEventListener("click", () => {
   $("#win-modal").classList.add("hidden");
   $("#btn-show-results").classList.remove("hidden");
+  // the reveal: post-game the web opens up (not on the finale board — its
+  // nodes carry namespaced per-island keys the expansion can't extend)
+  if (!finaleView && game.mode !== "party") enterReveal();
 });
 $("#btn-show-results").addEventListener("click", () => {
   $("#btn-show-results").classList.add("hidden");
   $("#win-modal").classList.remove("hidden");
+  exitReveal();
 });
 
 // intermission "view the map": duck the round modal to admire the finished
@@ -2186,6 +2201,7 @@ $("#btn-quit").addEventListener("click", () => {
   if (homeOnExit) return exitNowShowing(); // daily/archive quit is a skip → home
   boardActive = false;
   stopTimer();
+  exitReveal();
   $("#btn-show-results").classList.add("hidden");
   $("#btn-resume-round").classList.add("hidden");
   $("#round-modal").classList.add("hidden");
@@ -4138,12 +4154,21 @@ async function openBoardPeek(item) {
   $("#peek-poster").innerHTML = item.img
     ? `<img src="${item.img.replace("/w342/", "/w500/")}" alt="">`
     : `<span class="cast-fallback">${TYPE_EMOJI[item.type]}</span>`;
+  $("#peek-conns-wrap").classList.add("hidden"); // mid-game: never a credit list
+  $("#peek-conns").innerHTML = "";
+  document.querySelector(".peek-panel").classList.remove("reveal");
   $("#peek-modal").classList.remove("hidden");
   try {
     const det = await loadDetail(item);
     if (token !== peekSeq) return;
     $("#peek-meta").textContent = det.meta;
     $("#peek-overview").textContent = det.overview;
+    if (revealMode) {
+      // post-game the answer sheet is the fun — credits become walkable
+      renderPeekConns(item, det.conns);
+      $("#peek-conns-wrap").classList.remove("hidden");
+      document.querySelector(".peek-panel").classList.add("reveal");
+    }
   } catch {
     /* poster + name are already up — good enough */
   }
@@ -4162,6 +4187,301 @@ $("#peek-poster").addEventListener("click", () => {
 });
 $("#poster-zoom").addEventListener("click", () => {
   $("#poster-zoom").classList.add("hidden");
+});
+
+// ===== The Reveal =====
+// After a finish, "view the web" becomes an exploration mode: tap anything
+// to read it AND walk its credits — tapping a credit adds it to the web.
+// This is browsing the answer sheet, so nothing here writes the ledger,
+// the stats, or the win record. A route tool shows the tightest path the
+// current web allows, and the whole board saves as a framed one-sheet PNG.
+let revealMode = false;
+let altRouteOn = false;
+
+function enterReveal() {
+  revealMode = true;
+  $("#reveal-bar").classList.remove("hidden");
+  // no goal, no route — a Credits web reveals by exploring only
+  $("#btn-reveal-route").classList.toggle("hidden", !game.endKey);
+  clearAltRoute();
+}
+
+function exitReveal() {
+  revealMode = false;
+  $("#reveal-bar").classList.add("hidden");
+  clearAltRoute();
+}
+
+function clearAltRoute() {
+  altRouteOn = false;
+  $("#btn-reveal-route").innerHTML = "🥇 tightest route";
+  for (const [, s] of sim) s.el.classList.remove("alt-path");
+  for (const e of edgeEls) e.el.classList.remove("alt-path");
+}
+
+// The tightest route the CURRENT web allows — it gets shorter as reveal
+// expansions open shortcuts; finding a better road is the game here.
+function refreshAltRoute() {
+  for (const [, s] of sim) s.el.classList.remove("alt-path");
+  for (const e of edgeEls) e.el.classList.remove("alt-path");
+  const goals =
+    game.mode === "hybrid" ? game.goals.map((g) => g.key) : [game.endKey];
+  const routes = goals.map((g) => pathBetween(game.startKey, g)).filter(Boolean);
+  const keys = new Set(routes.flat());
+  const pairs = new Set();
+  for (const r of routes)
+    for (let i = 0; i < r.length - 1; i++) {
+      pairs.add(r[i] + "|" + r[i + 1]);
+      pairs.add(r[i + 1] + "|" + r[i]);
+    }
+  for (const [key, s] of sim) s.el.classList.toggle("alt-path", keys.has(key));
+  for (const e of edgeEls)
+    e.el.classList.toggle("alt-path", pairs.has(e.a + "|" + e.b));
+  return routes;
+}
+
+$("#btn-reveal-route").addEventListener("click", () => {
+  if (altRouteOn) return clearAltRoute();
+  const routes = refreshAltRoute();
+  if (!routes.length) return;
+  altRouteOn = true;
+  $("#btn-reveal-route").innerHTML = "✕ clear route";
+  const links = routes.reduce((a, r) => a + r.length - 1, 0);
+  const winPaths =
+    game.mode === "hybrid"
+      ? game.winPaths || []
+      : game.winPath
+        ? [game.winPath]
+        : [];
+  const winLinks = winPaths.reduce((a, r) => a + r.length - 1, 0);
+  setMessage(
+    !winLinks
+      ? `Tightest route on this web: ${links} link${links === 1 ? "" : "s"}.`
+      : links < winLinks
+        ? `Tightest route on this web: ${links} link${links === 1 ? "" : "s"} — ${winLinks - links} shorter than your ${winLinks}.`
+        : `Tightest route on this web: ${links} link${links === 1 ? "" : "s"} — your route was already the tightest.`,
+    "ok"
+  );
+});
+
+function renderPeekConns(from, conns) {
+  $("#peek-conns").innerHTML = conns
+    .map((c, i) => {
+      const on = game.nodes.has(c.key);
+      return `<button class="peek-conn${on ? " on-board" : ""}" data-i="${i}">
+        ${c.img ? `<img src="${c.img}" alt="">` : `<span class="no-img">${TYPE_EMOJI[c.type]}</span>`}
+        <span class="pc-name">${esc(c.name)}</span></button>`;
+    })
+    .join("");
+  $("#peek-conns").onclick = (e) => {
+    const btn = e.target.closest(".peek-conn");
+    if (!btn) return;
+    expandReveal(conns[+btn.dataset.i], from);
+  };
+}
+
+// Add a credit from the peek onto the finished web (or just draw the missing
+// edge if it's already there — they demonstrably share this credit).
+function expandReveal(item, from) {
+  const anchor = sim.get(from.key);
+  if (!anchor) return;
+  $("#peek-modal").classList.add("hidden");
+  if (game.nodes.has(item.key)) {
+    if (!game.edges.get(from.key).has(item.key)) {
+      game.edges.get(from.key).add(item.key);
+      game.edges.get(item.key).add(from.key);
+      addEdgeLine(from.key, item.key);
+    }
+    setMessage(`${item.name} ↔ ${from.name} — linked on the web.`);
+  } else {
+    game.nodes.set(item.key, item);
+    game.edges.get(from.key).add(item.key);
+    game.edges.set(item.key, new Set([from.key]));
+    addBoardNode(
+      item,
+      anchor.x + (Math.random() - 0.5) * 200,
+      anchor.y + (Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 80)
+    );
+    addEdgeLine(from.key, item.key);
+    setMessage(`＋ ${item.name} — from ${from.name}'s credits.`);
+    fitBoard();
+  }
+  if (altRouteOn) refreshAltRoute(); // a new node can open a shorter road
+}
+
+// ---- Frame the web ----
+// The whole board as a framed one-sheet: warm paper, marquee title, the
+// winning path in gold, every node a poster tile. Reuses the card kit
+// (cardPaper / cardPoster / loadCardImg) so it ships in the same voice.
+async function drawBoardFrame() {
+  await document.fonts.ready;
+  const entries = [...game.nodes.values()]
+    .map((it) => ({ it, s: sim.get(it.key) }))
+    .filter((n) => n.s);
+  if (!entries.length) throw new Error("empty board");
+
+  const PW = 92, PH = 138; // poster tile
+  const M = 96; // margin inside the frame
+  const HEAD = 210, FOOT = 90;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const n of entries) {
+    minX = Math.min(minX, n.s.x); maxX = Math.max(maxX, n.s.x);
+    minY = Math.min(minY, n.s.y); maxY = Math.max(maxY, n.s.y);
+  }
+  const spreadX = Math.max(maxX - minX, 1);
+  const spreadY = Math.max(maxY - minY, 1);
+  const W = 2000;
+  const availW = W - 2 * M - PW;
+  let k = Math.min(availW / spreadX, 1.3); // never blow a tiny web up huge
+  let H = Math.round(HEAD + FOOT + 2 * M + PH + 34 + spreadY * k);
+  const HMAX = 2600, HMIN = 1150;
+  if (H > HMAX) {
+    k = Math.min(k, (HMAX - HEAD - FOOT - 2 * M - PH - 34) / spreadY);
+    H = HMAX;
+  }
+  if (H < HMIN) H = HMIN;
+  const availH = H - HEAD - FOOT - 2 * M - PH - 34;
+  const ox = M + PW / 2 + Math.max(0, (availW - spreadX * k) / 2);
+  const oy = HEAD + M + PH / 2 + Math.max(0, (availH - spreadY * k) / 2);
+  const cx = (n) => ox + (n.s.x - minX) * k;
+  const cy = (n) => oy + (n.s.y - minY) * k;
+
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const x = cv.getContext("2d");
+  cardPaper(x, W, H);
+
+  // marquee
+  const start = game.nodes.get(game.startKey);
+  const title =
+    game.mode === "knowledge"
+      ? `Everything ${start.name}`
+      : game.mode === "hybrid"
+        ? `${start.name} → ${game.goals.map((g) => g.name).join(" · ")}`
+        : `${start.name} → ${game.nodes.get(game.endKey)?.name || "?"}`;
+  x.textAlign = "center";
+  x.textBaseline = "alphabetic";
+  x.fillStyle = CARD.muted;
+  x.font = "600 17px Inter, sans-serif";
+  x.fillText("THE CONNECTION GAME", W / 2, 72);
+  x.fillStyle = CARD.ink;
+  let size = 64;
+  x.font = `italic ${size}px "Instrument Serif", Georgia, serif`;
+  while (x.measureText(title).width > W - 2 * M && size > 30) {
+    size -= 4;
+    x.font = `italic ${size}px "Instrument Serif", Georgia, serif`;
+  }
+  x.fillText(title, W / 2, 148);
+  x.strokeStyle = CARD.gold;
+  x.lineWidth = 3;
+  x.beginPath();
+  x.moveTo(W / 2 - 70, 172);
+  x.lineTo(W / 2 + 70, 172);
+  x.stroke();
+
+  // edges under the tiles; the winning path golds on top of the plain lines
+  const winPaths =
+    game.mode === "hybrid"
+      ? game.winPaths || []
+      : game.winPath
+        ? [game.winPath]
+        : [];
+  const winPairs = new Set();
+  const winKeys = new Set(winPaths.flat());
+  for (const p of winPaths)
+    for (let i = 0; i < p.length - 1; i++) {
+      winPairs.add(p[i] + "|" + p[i + 1]);
+      winPairs.add(p[i + 1] + "|" + p[i]);
+    }
+  const at = new Map(entries.map((n) => [n.it.key, n]));
+  const drawn = new Set();
+  x.lineCap = "round";
+  for (const pass of [0, 1])
+    for (const [a, nbs] of game.edges)
+      for (const b of nbs) {
+        const id = a < b ? a + "|" + b : b + "|" + a;
+        const gold = winPairs.has(a + "|" + b);
+        if ((pass === 1) !== gold || drawn.has(id)) continue;
+        drawn.add(id);
+        const na = at.get(a), nb = at.get(b);
+        if (!na || !nb) continue;
+        x.strokeStyle = gold ? CARD.gold : "rgba(34,29,21,0.26)";
+        x.lineWidth = gold ? 5 : 2.5;
+        x.beginPath();
+        x.moveTo(cx(na), cy(na));
+        x.lineTo(cx(nb), cy(nb));
+        x.stroke();
+      }
+
+  // poster tiles + rings (start sage, goals clay, the winning path gold)
+  const goalKeys = new Set(
+    game.mode === "hybrid" ? game.goals.map((g) => g.key) : game.endKey ? [game.endKey] : []
+  );
+  const imgs = await Promise.all(entries.map((n) => loadCardImg(n.it.img, false)));
+  entries.forEach((n, i) => {
+    const px = cx(n) - PW / 2;
+    const py = cy(n) - PH / 2;
+    cardPoster(x, imgs[i], n.it.type, n.it.name, px, py, PW, PH, PW * 1.7);
+    const ring =
+      n.it.key === game.startKey
+        ? CARD.sage
+        : goalKeys.has(n.it.key)
+          ? CARD.clay
+          : winKeys.has(n.it.key)
+            ? CARD.gold
+            : null;
+    if (ring) {
+      x.strokeStyle = ring;
+      x.lineWidth = n.it.key === game.startKey || goalKeys.has(n.it.key) ? 6 : 4;
+      x.strokeRect(px - 4, py - 4, PW + 8, PH + 8);
+    }
+  });
+
+  // fine print
+  const winLinks = winPaths.reduce((a, p) => a + p.length - 1, 0);
+  x.fillStyle = CARD.muted;
+  x.font = "600 16px Inter, sans-serif";
+  x.textAlign = "center";
+  x.fillText(
+    (game.mode === "knowledge"
+      ? `${game.placed} named in ${settings.timerMinutes} min`
+      : winLinks
+        ? `your route: ${winLinks} link${winLinks === 1 ? "" : "s"}`
+        : `${entries.length} on the web`) +
+      ` · ${entries.length} pieces of cinema · ${cardDateNice()}`,
+    W / 2,
+    H - 52
+  );
+  return cv;
+}
+
+async function saveBoardFrame() {
+  const cv = await drawBoardFrame();
+  const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "the-web-" + new Date().toISOString().slice(0, 10) + ".png";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+$("#btn-reveal-frame").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "framing…";
+  try {
+    await saveBoardFrame();
+    btn.innerHTML = "✓ saved!";
+  } catch {
+    btn.innerHTML = "couldn't frame";
+  }
+  setTimeout(() => {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }, 1600);
 });
 
 // ===== The Box Office: browse features and pick a ticket =====
@@ -4568,14 +4888,15 @@ function cardDateNice() {
 
 // Load a poster for canvas use. crossOrigin so toBlob isn't tainted (TMDB's
 // image CDN sends Access-Control-Allow-Origin: *). Resolves null on failure.
-function loadCardImg(url) {
+function loadCardImg(url, hi = true) {
   return new Promise((resolve) => {
     if (!url) return resolve(null);
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = url.replace("/w342/", "/w500/");
+    // hi = false keeps w342 — the board frame loads every node at once
+    img.src = hi ? url.replace("/w342/", "/w500/") : url;
   });
 }
 
@@ -4603,7 +4924,7 @@ function cardPaper(x, W, H) {
 }
 
 // rounded poster tile with a cover-fit image (or an emoji fallback), name below
-function cardPoster(x, img, type, name, px, py, pw, ph) {
+function cardPoster(x, img, type, name, px, py, pw, ph, labelW = 0) {
   const r = 10;
   x.save();
   x.beginPath();
@@ -4639,7 +4960,8 @@ function cardPoster(x, img, type, name, px, py, pw, ph) {
   x.textAlign = "center";
   x.textBaseline = "top";
   let label = name;
-  while (x.measureText(label).width > pw && label.length > 4)
+  const maxW = labelW || pw; // the board frame allows names wider than the tile
+  while (x.measureText(label).width > maxW && label.length > 4)
     label = label.slice(0, -2);
   if (label !== name) label = label.slice(0, -1) + "…";
   x.fillText(label, px + pw / 2, py + ph + 8);

@@ -183,7 +183,7 @@
     <div class="scene-mode-row">
       <div class="chip-group" id="scene-mode-chips">
         <button class="chip active" data-value="classic">Classic</button>
-        <button class="chip" data-value="knowledge">Knowledge</button>
+        <button class="chip" data-value="knowledge">Credits</button>
       </div>
     </div>
 
@@ -595,6 +595,11 @@
   </div>
 
   <button id="btn-show-results" class="btn primary show-results hidden">🏆 results</button>
+  <!-- THE REVEAL — post-game exploration tools (view the web after a finish) -->
+  <div id="reveal-bar" class="reveal-bar hidden">
+    <button id="btn-reveal-route" class="btn ghost">🥇 tightest route</button>
+    <button id="btn-reveal-frame" class="btn ghost">🖼 frame the web</button>
+  </div>
   <button id="btn-resume-round" class="btn primary show-results hidden">continue <span class="arrow-r">→</span></button>
 </section>
 
@@ -742,6 +747,12 @@
         <p class="detail-meta" id="peek-meta"></p>
         <p class="detail-overview" id="peek-overview"></p>
       </div>
+    </div>
+    <!-- the reveal only: credits become walkable AFTER the game is over —
+         mid-game this stays hidden (it would be an answer sheet) -->
+    <div id="peek-conns-wrap" class="peek-conns-wrap hidden">
+      <p class="eyebrow">Credits — tap one to add it to the web</p>
+      <div id="peek-conns" class="peek-conns"></div>
     </div>
   </div>
 </div>
