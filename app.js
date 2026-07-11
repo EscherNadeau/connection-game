@@ -6,12 +6,53 @@
 const TMDB = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/w342";
 
+// ---- Storage helpers ----
+// localStorage can be blocked outright (cookies-off browsers, embeds), throw
+// on write (private mode, full disk), or hold corrupt JSON — none of which
+// may ever crash a game flow. Every touch goes through these.
+const store = (() => {
+  try {
+    const s = window.localStorage;
+    s.getItem("");
+    return s;
+  } catch {
+    return null; // storage blocked — the game still plays, nothing persists
+  }
+})();
+
+function lsGet(key) {
+  try {
+    return store ? store.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+let lsWriteWarned = false;
+function lsSet(key, value) {
+  try {
+    store.setItem(key, value);
+  } catch (err) {
+    if (!lsWriteWarned)
+      console.warn("Couldn't save to browser storage — progress won't survive a refresh.", err);
+    lsWriteWarned = true;
+  }
+}
+
+function lsJSON(key, fallback) {
+  try {
+    return JSON.parse(lsGet(key) ?? fallback);
+  } catch {
+    return JSON.parse(fallback);
+  }
+}
+
 // The house key: lets visitors on the live site play instantly, no
 // signup wall. TMDB keys are client-visible by nature; anyone can still
 // bring their own via "change api key" (their key wins once saved).
 const DEFAULT_TMDB_KEY = "2d93c6b7fd37267cb508e4cf8ce02dda";
 
-let apiKey = localStorage.getItem("tmdb_key") || DEFAULT_TMDB_KEY;
+let apiKey = lsGet("tmdb_key") || DEFAULT_TMDB_KEY;
 
 // ---- API helper (supports v3 key or v4 bearer token) ----
 // Every request funnels through a small concurrency gate plus 429 retry,
@@ -353,7 +394,7 @@ $("#key-save").addEventListener("click", async () => {
   apiKey = val;
   try {
     await tmdb("/configuration");
-    localStorage.setItem("tmdb_key", val);
+    lsSet("tmdb_key", val);
     $("#key-error").classList.add("hidden");
     showT("home");
     fillPool().catch(() => {});
@@ -907,6 +948,29 @@ function setMessage(text, kind) {
   el.className = "message" + (kind ? " " + kind : "");
 }
 
+// ---- Big flares (the party pass) ----
+// A surprising link is the product; the toast-sized flare mumbled it. This
+// celebrates the credit at couch distance — big enough to read across a
+// room, gone before the next answer. Every link is person↔title by the one
+// rule, so the credit always reads "PERSON was in TITLE". `who` is the
+// finder's name on the party stage.
+let flareTimer = null;
+function bigFlare(tier, a, b, who) {
+  const person = a.type === "person" ? a : b;
+  const title = a.type === "person" ? b : a;
+  $("#flare-emoji").textContent = tier === "crazy" ? "🤯" : "🎉";
+  $("#flare-title").textContent = tier === "crazy" ? "crazy pull" : "deep cut";
+  $("#flare-credit").innerHTML =
+    `${esc(person.name)} <em>was in</em> ${esc(title.name)}` +
+    (who ? `<span class="flare-by">${esc(who)}</span>` : "");
+  const over = $("#flare-overlay");
+  over.classList.remove("hidden", "run");
+  void over.offsetWidth; // restart the pop even mid-flight
+  over.classList.add("run");
+  clearTimeout(flareTimer);
+  flareTimer = setTimeout(() => over.classList.add("hidden"), 1900);
+}
+
 // ===== Double feature: one start, many goals, one shared web =====
 // (internal mode id stays "hybrid".) All goals are visible from move 1;
 // win = every goal connected. Shared trunks are the genius move — one
@@ -1058,6 +1122,7 @@ function showHybridWin(paths) {
       (shared ? ` · ${shared} shared` : ""),
   };
   $("#btn-save-card").classList.remove("hidden");
+  syncPlayAgainLabel();
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 600);
 }
 
@@ -1266,6 +1331,7 @@ function showKnowledgeResults() {
       (game.bar && game.placed > game.bar ? ` · beat ${game.bar} 🏆` : ""),
   };
   $("#btn-save-card").classList.remove("hidden");
+  syncPlayAgainLabel();
   $("#win-modal").classList.remove("hidden");
 }
 
@@ -1867,6 +1933,12 @@ async function tryPlace(item) {
       : linkTiers.includes("deep cut")
         ? " 🎉 deep cut!"
         : "";
+    if (flare) {
+      // celebrate the SURPRISING link — the rarest one this placement made
+      const want = linkTiers.includes("crazy") ? "crazy" : "deep cut";
+      const at = linkTiers.indexOf(want);
+      bigFlare(want, item, game.nodes.get(linked[at]));
+    }
     setMessage(
       game.mode === "knowledge"
         ? `✅ ${item.name} — ${game.placed} named!${flare}`
@@ -1983,6 +2055,25 @@ function checkWin() {
   const linkTiers = [];
   for (let i = 0; i < path.length - 1; i++)
     linkTiers.push(edgeTier(game.nodes.get(path[i]), game.nodes.get(path[i + 1])));
+
+  // Reveal-first (the lens, #25): when the chain holds a surprising link,
+  // THAT is the headline — the route is the story, stars drop to fine print.
+  // The shell-restore lines above stay the default for pull-less wins.
+  let pullIdx = linkTiers.indexOf("crazy");
+  if (pullIdx < 0) pullIdx = linkTiers.indexOf("deep cut");
+  let pullText = null;
+  if (pullIdx >= 0) {
+    const a = game.nodes.get(path[pullIdx]);
+    const b = game.nodes.get(path[pullIdx + 1]);
+    const person = a.type === "person" ? a : b;
+    const title = a.type === "person" ? b : a;
+    pullText = `${person.name} was in ${title.name}`;
+    $("#win-modal .eyebrow").textContent =
+      linkTiers[pullIdx] === "crazy" ? "The pull 🤯" : "The pull 🎉";
+    $("#win-modal h1").innerHTML =
+      `${esc(person.name)} <em>was in ${esc(title.name)}.</em>`;
+  }
+
   const clean = !linkTiers.includes("famous"); // "famous" link = both ends famous
   const deep =
     clean && linkTiers.some((t) => t === "deep cut" || t === "crazy");
@@ -2046,7 +2137,9 @@ function checkWin() {
     .join("");
   lastCard = {
     kind: "chain",
-    headline: "Connected.",
+    // the card is the souvenir — the full route is deliberate, so the pull
+    // headline is no spoiler here (the TEXT share is the one that teases)
+    headline: pullText ? pullText + "." : "Connected.",
     subtitle: dailyActive
       ? `Now Showing · ${cardDateNice()}`
       : rules?.title
@@ -2060,6 +2153,7 @@ function checkWin() {
       (oneTake ? " · 🎞 one take" : ""),
   };
   $("#btn-save-card").classList.remove("hidden");
+  syncPlayAgainLabel();
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 600);
 }
 
@@ -2114,6 +2208,57 @@ $("#btn-quit").addEventListener("click", () => {
   }
   showT("mode"); // back to setup with the same matchup waiting
 });
+// The party pass: quick play never files back through the setup screen —
+// a fresh bill lands straight on the board (the couch's instant next round).
+// Slots/deck stay in sync so a later quit still shows what you just played.
+async function nextRound() {
+  const btn = $("#btn-play-again");
+  btn.disabled = true;
+  try {
+    if (game.mode === "knowledge") {
+      const start = await takeRandomItem(null, slotFilter.start);
+      slots.start = start;
+      renderSlotDisplays("start", start);
+      startKnowledge(structuredClone(start));
+    } else if (game.mode === "hybrid") {
+      const start = await takeRandomItem(null, slotFilter.start);
+      const goals = [];
+      for (let i = 0; i < settings.hybridN; i++)
+        goals.push(
+          await takeRandomItem(new Set([start.key, ...goals.map((g) => g.key)]))
+        );
+      slots.start = start;
+      goals.forEach((g, i) => (goalSlots[i] = g));
+      renderDF();
+      startHybrid(structuredClone(start), structuredClone(goals));
+    } else {
+      const start = await takeRandomItem(null, slotFilter.start);
+      const end = await takeRandomItem(start.key, slotFilter.end);
+      slots.start = start;
+      slots.end = end;
+      renderSlotDisplays("start", start);
+      renderSlotDisplays("end", end);
+      startGame(structuredClone(start), structuredClone(end));
+    }
+  } catch (err) {
+    // pools dry or offline — fall back to the setup screen, never a dead button
+    console.error(err);
+    showT("mode");
+    rerollSlot("start");
+    rerollSlot("end");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Quick play gets the instant rematch label; every other context keeps its
+// own exit (premiere, builder, home) and the familiar words.
+function syncPlayAgainLabel() {
+  const quick = !homeOnExit && !quest.active && !builderTest;
+  $("#btn-play-again").innerHTML =
+    (quick ? "Next Round" : "Play Again") + ' <span class="arrow-r">→</span>';
+}
+
 $("#btn-play-again").addEventListener("click", () => {
   if (homeOnExit) return exitNowShowing(); // a daily is one-and-done → home
   boardActive = false;
@@ -2132,9 +2277,7 @@ $("#btn-play-again").addEventListener("click", () => {
     showPremiere();
     return;
   }
-  showT("mode");
-  rerollSlot("start");
-  rerollSlot("end");
+  nextRound(); // party pass: fresh bill, straight onto the board
 });
 $("#btn-retry").addEventListener("click", () => {
   if (homeOnExit) return exitNowShowing(); // the daily is settled → home (practice from the archive)
@@ -2169,9 +2312,7 @@ $("#btn-lose-new").addEventListener("click", () => {
     showPremiere();
     return;
   }
-  showT("mode");
-  rerollSlot("start");
-  rerollSlot("end");
+  nextRound(); // a loss rolls straight into the next bill too
 });
 
 // ---- Lobby settings: difficulty presets + custom knobs ----
@@ -2190,11 +2331,11 @@ const SETTINGS_DEFAULTS = {
 };
 let settings = { ...SETTINGS_DEFAULTS };
 try {
-  settings = { ...SETTINGS_DEFAULTS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
+  settings = { ...SETTINGS_DEFAULTS, ...JSON.parse(lsGet("settings") || "{}") };
 } catch { /* corrupted storage — fall back to defaults */ }
 
 function saveSettings() {
-  localStorage.setItem("settings", JSON.stringify(settings));
+  lsSet("settings", JSON.stringify(settings));
 }
 
 function renderSettings() {
@@ -2270,7 +2411,7 @@ renderSettings();
 function applyTheme(dark) {
   document.body.classList.toggle("dark", dark);
   $("#btn-theme").textContent = dark ? "☀" : "☾";
-  localStorage.setItem("theme", dark ? "dark" : "light");
+  lsSet("theme", dark ? "dark" : "light");
 }
 
 // Slow radial reveal from the toggle button (View Transitions API,
@@ -2300,7 +2441,7 @@ $("#btn-theme").addEventListener("click", () => {
   document.startViewTransition(() => applyTheme(dark));
 });
 
-applyTheme(localStorage.getItem("theme") !== "light");
+applyTheme(lsGet("theme") !== "light");
 
 // ---- Poster rain: scrolling poster columns behind the home hero ----
 // Built once from a snapshot of the prefetched pool (no extra API calls).
@@ -2624,7 +2765,7 @@ function restoreQuestSettings() {
 function recordStub(line, ok) {
   if (!quest.active || builderTest) return;
   const r0 = quest.rounds[0];
-  const stubs = JSON.parse(localStorage.getItem("stubs") || "[]");
+  const stubs = lsJSON("stubs", "[]");
   stubs.unshift({
     ti:
       quest.title ||
@@ -2638,7 +2779,7 @@ function recordStub(line, ok) {
     ok,
     blob: quest.blob, // lets a stub replay the exact feature
   });
-  localStorage.setItem("stubs", JSON.stringify(stubs.slice(0, 30)));
+  lsSet("stubs", JSON.stringify(stubs.slice(0, 30)));
   queueSync();
 }
 
@@ -2976,6 +3117,7 @@ async function showFinale() {
         <span>${res.success ? "✓" : "✗"} ${line}${par ? ` · creator ${par}` : ""}</span></div>`;
     })
     .join("");
+  syncPlayAgainLabel();
   setTimeout(() => $("#win-modal").classList.remove("hidden"), 400);
 }
 
@@ -3504,11 +3646,11 @@ function buildStudioLink() {
 // Releasing a feature also files it on your Box Office shelf — a copied
 // link shouldn't be the only place your work exists.
 function saveToShelf(blob) {
-  const shelf = JSON.parse(localStorage.getItem("shelf") || "[]");
+  const shelf = lsJSON("shelf", "[]");
   const json = JSON.stringify(blob);
   if (shelf.some((f) => JSON.stringify(f.blob) === json)) return; // re-release, unchanged
   shelf.unshift({ id: Date.now(), blob, savedAt: Date.now() });
-  localStorage.setItem("shelf", JSON.stringify(shelf.slice(0, 30)));
+  lsSet("shelf", JSON.stringify(shelf.slice(0, 30)));
   queueSync();
 }
 
@@ -4119,8 +4261,8 @@ function shelfSection(label, cards) {
 }
 
 function renderOffice() {
-  const films = JSON.parse(localStorage.getItem("shelf") || "[]");
-  const stubs = JSON.parse(localStorage.getItem("stubs") || "[]");
+  const films = lsJSON("shelf", "[]");
+  const stubs = lsJSON("stubs", "[]");
   $("#office-shelves").innerHTML =
     shelfSection("Staff picks", STAFF_PICKS.map((c, i) => officeCard(c, "staff", i))) +
     (films.length
@@ -4163,8 +4305,8 @@ $("#office-shelves").addEventListener("click", async (e) => {
   let blob = null;
   if (card.dataset.kind === "staff") blob = STAFF_PICKS[i];
   else if (card.dataset.kind === "film")
-    blob = JSON.parse(localStorage.getItem("shelf") || "[]")[i]?.blob;
-  else blob = JSON.parse(localStorage.getItem("stubs") || "[]")[i]?.blob;
+    blob = lsJSON("shelf", "[]")[i]?.blob;
+  else blob = lsJSON("stubs", "[]")[i]?.blob;
   if (!blob) return;
   card.classList.add("loading");
   const ok = await loadFeature(JSON.parse(JSON.stringify(blob)));
@@ -5238,6 +5380,7 @@ async function blitzAnswer(player, item) {
     fitBoard();
     const flare =
       tier === "crazy" ? " 🤯 crazy pull!" : tier === "deep cut" ? " 🎉 deep cut!" : "";
+    if (flare) bigFlare(tier, item, blitz.seed, player.name); // the flares ARE the show mid-round
     setMessage(`⚡ ${player.name} — ${item.name}.${flare}`, flare ? "ok" : undefined);
   }
   renderPartyStrip();
@@ -5487,7 +5630,7 @@ function resolveDailyFor(date) {
     const today = dailyDateStr();
     if (date === today) {
       try {
-        const cached = JSON.parse(localStorage.getItem("dailyPuzzle") || "null");
+        const cached = JSON.parse(lsGet("dailyPuzzle") || "null");
         if (cached?.date === date) return cached;
       } catch {}
     }
@@ -5528,7 +5671,7 @@ function resolveDailyFor(date) {
     }
     if (!goal) return null;
     const puzzle = { date, s: start, g: goal };
-    if (date === today) localStorage.setItem("dailyPuzzle", JSON.stringify(puzzle));
+    if (date === today) lsSet("dailyPuzzle", JSON.stringify(puzzle));
     return puzzle;
   })().catch(() => null);
   dailyCache.set(date, p);
@@ -5540,7 +5683,7 @@ function resolveDaily() {
 
 function dailyLog() {
   try {
-    return JSON.parse(localStorage.getItem("dailyLog") || "{}");
+    return JSON.parse(lsGet("dailyLog") || "{}");
   } catch {
     return {};
   }
@@ -5597,7 +5740,7 @@ function recordDaily(ok, extra = {}) {
   const date = dailyDateStr();
   if (log[date]) return false; // already settled today
   log[date] = { ok, ...extra };
-  localStorage.setItem("dailyLog", JSON.stringify(log));
+  lsSet("dailyLog", JSON.stringify(log));
   queueSync();
   return true;
 }
@@ -5829,7 +5972,7 @@ function loadLedger() {
   if (ledger) return ledger;
   let raw = {};
   try {
-    raw = JSON.parse(localStorage.getItem(LEDGER_KEY) || "{}");
+    raw = JSON.parse(lsGet(LEDGER_KEY) || "{}");
   } catch {}
   ledger = {
     deep: new Set(raw.deep || []), // distinct deep-cut links found
@@ -5844,7 +5987,7 @@ function loadLedger() {
 
 function saveLedger() {
   if (!ledger) return;
-  localStorage.setItem(
+  lsSet(
     LEDGER_KEY,
     JSON.stringify({
       deep: [...ledger.deep],
@@ -6059,14 +6202,7 @@ $("#btn-acct-out").addEventListener("click", async () => {
 });
 
 // ---- the sync layer: merge on sign-in, write-through after ----
-function lsJSON(key, fallback) {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? fallback);
-  } catch {
-    return JSON.parse(fallback);
-  }
-}
-
+// (lsGet/lsSet/lsJSON live at the top of the file with the storage helpers.)
 function localState() {
   return {
     daily_log: lsJSON("dailyLog", "{}"),
@@ -6135,10 +6271,10 @@ async function syncOnSignIn() {
     return;
   }
   const merged = mergeState(localState(), data || {});
-  localStorage.setItem("dailyLog", JSON.stringify(merged.daily_log));
-  localStorage.setItem("shelf", JSON.stringify(merged.shelf));
-  localStorage.setItem("stubs", JSON.stringify(merged.stubs));
-  localStorage.setItem(LEDGER_KEY, JSON.stringify(merged.ledger));
+  lsSet("dailyLog", JSON.stringify(merged.daily_log));
+  lsSet("shelf", JSON.stringify(merged.shelf));
+  lsSet("stubs", JSON.stringify(merged.stubs));
+  lsSet(LEDGER_KEY, JSON.stringify(merged.ledger));
   ledger = null; // reload from the merged books on next touch
   await pushState(merged);
   if (profileShowing()) renderProfile();
@@ -6165,6 +6301,25 @@ function queueSync() {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => pushState(), 3000);
 }
+
+// ---- Last-resort net ----
+// Every listener attaches at script load, so an uncaught error dead-ends a
+// flow with no visible trace (the project's #1 footgun). Log it and tell the
+// player once, plainly.
+let crashNoted = false;
+function noteCrash(detail) {
+  console.error(detail);
+  if (crashNoted || !document.body) return;
+  crashNoted = true;
+  const el = document.createElement("div");
+  el.className = "crash-note";
+  el.textContent =
+    "Something went wrong — check your connection, or refresh the page if the game stops responding.";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 8000);
+}
+window.addEventListener("error", (e) => noteCrash(e.error || e.message));
+window.addEventListener("unhandledrejection", (e) => noteCrash(e.reason));
 
 // ---- Boot ----
 if (apiKey) {

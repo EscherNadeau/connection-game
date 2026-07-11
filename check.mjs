@@ -39,4 +39,22 @@ const missing = [...refs].filter((id) => !htmlIds.has(id));
 if (missing.length) fail("ids referenced in app.js but missing from index.html: " + missing.join(", "));
 else console.log(`✓ all ${refs.size} referenced ids exist in index.html`);
 
+// 3. duplicate ids — a duplicate silently cross-wires two flows ($ returns
+//    the first match). Bit us once: #btn-next-round doubled between the quest
+//    intermission and the party podium (TODO #19).
+const idCounts = new Map();
+for (const m of html.matchAll(/id="([\w-]+)"/g))
+  idCounts.set(m[1], (idCounts.get(m[1]) || 0) + 1);
+const dupes = [...idCounts].filter(([, n]) => n > 1).map(([id]) => id);
+if (dupes.length) fail("duplicate ids in index.html: " + dupes.join(", "));
+else console.log(`✓ no duplicate ids in index.html (${idCounts.size} unique)`);
+
+// 4. raw storage access — everything must ride the guarded helpers
+//    (lsGet/lsSet/lsJSON at the top of app.js); a raw call throws in
+//    private/blocked-storage browsers and kills the flow it's in.
+const rawStorage = [...js.matchAll(/localStorage\.(get|set|remove)Item/g)];
+if (rawStorage.length)
+  fail(`${rawStorage.length} raw localStorage call(s) in app.js — use lsGet/lsSet/lsJSON`);
+else console.log("✓ no raw localStorage calls (guarded helpers only)");
+
 process.exit(failed ? 1 : 0);

@@ -598,15 +598,16 @@
   <button id="btn-resume-round" class="btn primary show-results hidden">continue <span class="arrow-r">→</span></button>
 </section>
 
-<!-- WIN MODAL -->
+<!-- WIN MODAL — reveal-first (the lens): the pull is the headline, the route
+     is the story, the stars are fine print below it. -->
 <div id="win-modal" class="modal hidden">
   <div class="win-panel">
     <p class="eyebrow">Chain complete</p>
     <h1><em>Connected.</em></h1>
-    <p id="win-stars" class="win-stars hidden"></p>
     <p id="win-score"></p>
-    <p id="win-daily" class="win-daily hidden"></p>
     <div id="win-path" class="win-path"></div>
+    <p id="win-stars" class="win-stars hidden"></p>
+    <p id="win-daily" class="win-daily hidden"></p>
     <div class="win-actions">
       <button id="btn-play-again" class="btn primary big">Play Again <span class="arrow-r">→</span></button>
       <button id="btn-save-card" class="btn ghost">🎬 save the card</button>
@@ -845,6 +846,17 @@
       <button id="btn-retry" class="btn primary big">Run It Back <span class="arrow-r">↻</span></button>
       <button id="btn-lose-new" class="btn ghost">new matchup</button>
     </div>
+  </div>
+</div>
+
+<!-- BIG FLARE — a deep cut / crazy pull celebrated at couch distance.
+     Never blocks input (pointer-events: none); a new flare replaces a
+     mid-flight one rather than queueing. -->
+<div id="flare-overlay" class="hidden" aria-hidden="true">
+  <div class="flare-inner">
+    <div id="flare-emoji" class="flare-emoji">🤯</div>
+    <div id="flare-title" class="flare-title">crazy pull</div>
+    <div id="flare-credit" class="flare-credit"></div>
   </div>
 </div>
 

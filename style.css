@@ -2018,7 +2018,13 @@ body.dark .ep-goal .endpoint-frame:hover {
   align-items: center;
   animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.win-panel h1 { margin-bottom: 0; font-size: clamp(2.6rem, 6vw, 4rem); }
+.win-panel h1 {
+  margin-bottom: 0;
+  font-size: clamp(2.6rem, 6vw, 4rem);
+  /* pull headlines are full sentences — wrap them gracefully */
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
 .win-panel .eyebrow { margin-bottom: 0; }
 #win-score { color: var(--muted); }
 #win-score b { color: var(--ink); }
@@ -2050,8 +2056,10 @@ body.dark .ep-goal .endpoint-frame:hover {
 .win-path .path-item span { font-size: 0.72rem; font-weight: 500; line-height: 1.25; }
 .win-path .arrow { color: var(--gold); font-size: 1.2rem; }
 
-/* deep-cut scoring: star line + link badges on the win-path arrows */
-.win-stars { margin-top: -8px; font-size: 1rem; }
+/* deep-cut scoring: star line + link badges on the win-path arrows.
+   Reveal-first (#25): the stars sit under the route as fine print — they
+   keep every plumbing job (medals, share text, par) but lose the marquee. */
+.win-stars { margin-top: -10px; font-size: 0.85rem; opacity: 0.85; }
 .win-stars .stars { color: var(--gold); letter-spacing: 3px; }
 .win-stars .stars-label {
   font-family: "Instrument Serif", serif;
@@ -2707,4 +2715,99 @@ button.cal-cell[data-date]:hover { transform: translateY(-2px); border-color: va
 
 @media (max-width: 640px) {
   .prof-hero { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ===== crash note (last-resort net) ===== */
+/* Plain on purpose — error copy is never themed. Sits above every modal. */
+.crash-note {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 300;
+  max-width: min(92vw, 480px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  font-size: 0.9rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ===== the big flare (party pass, #25) ===== */
+/* The surprising credit celebrated at couch distance — pure presentation:
+   pointer-events none, input stays live underneath, a new flare replaces a
+   mid-flight one. Light text over its own dark veil works in BOTH themes. */
+#flare-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150; /* above the stage modals (120), below the crash note (300) */
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+#flare-overlay.hidden { display: none; }
+#flare-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 72% 58% at center, rgba(16, 13, 8, 0.66), transparent 78%);
+}
+#flare-overlay.run { animation: flare-veil 1.9s ease both; }
+.flare-inner {
+  position: relative;
+  text-align: center;
+  padding: 0 24px;
+  max-width: min(92vw, 980px);
+}
+#flare-overlay.run .flare-inner {
+  animation: flare-pop 1.9s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+}
+.flare-emoji { font-size: clamp(3rem, 8vw, 5.2rem); line-height: 1.1; }
+.flare-title {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: clamp(2.6rem, 7.5vw, 5rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: var(--gold);
+  text-transform: uppercase;
+  text-shadow: 0 2px 26px rgba(0, 0, 0, 0.5);
+}
+.flare-credit {
+  margin-top: 12px;
+  font-size: clamp(1.3rem, 3.6vw, 2.3rem);
+  font-weight: 600;
+  color: #f6f2e8;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+}
+.flare-credit em { font-size: 0.9em; }
+.flare-by {
+  display: block;
+  margin-top: 8px;
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  color: #ded7c6;
+}
+@keyframes flare-pop {
+  0% { transform: scale(0.55); opacity: 0; }
+  14% { transform: scale(1.05); opacity: 1; }
+  24% { transform: scale(1); }
+  78% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.02); opacity: 0; }
+}
+@keyframes flare-veil {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  74% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #flare-overlay.run,
+  #flare-overlay.run .flare-inner {
+    animation: flare-veil 1.9s ease both; /* fade only, no pop */
+  }
 }
